@@ -1,0 +1,81 @@
+body {
+  background-color: #121212;
+  color: #fff;
+  font-family: sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 10px;
+  touch-action: manipulation;
+}
+
+#app {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.status-panel {
+  background: #222;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.stock-display {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+#stockCount {
+  color: #ffca28;
+  font-size: 1.8rem;
+}
+
+.btn-eat {
+  background: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.btn-eat:active { background: #45a049; }
+
+.game-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+canvas {
+  border: 2px solid #444;
+  background-color: #000;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.btn-ctrl {
+  background: #333;
+  color: white;
+  border: 1px solid #555;
+  padding: 15px;
+  font-size: 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-drop {
+  grid-column: span 3;
+  background: #e53935;
+  font-weight: bold;
+}
+
+.btn-ctrl:active { background: #555; }
