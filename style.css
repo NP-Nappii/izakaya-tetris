@@ -162,3 +162,26 @@
     padding: 10px 0; font-weight: 800; font-size: 16px; cursor: pointer;
   }
   .choice-piece:hover { border-color: var(--gold); }
+
+  .chip-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .chip {
+    background: var(--board-empty); border: 1.5px solid var(--line); color: var(--paper);
+    border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .chip:disabled { opacity: 0.4; cursor: not-allowed; }
+  .chip-excluded {
+    background: transparent; border-style: dashed; color: var(--paper-dim);
+    text-decoration: line-through; opacity: 0.55;
+  }
+
+  .number-input {
+    width: 64px; background: var(--board-empty); border: 1px solid var(--line); color: var(--paper);
+    border-radius: 8px; padding: 7px 8px; font-size: 14px; text-align: center;
+  }
+
+  .giveup-btn {
+    width: 100%; background: transparent; border: 1px solid var(--danger); color: var(--danger);
+    border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  }
+  .giveup-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .giveup-btn:hover:not(:disabled) { background: rgba(217,72,58,0.12); }
