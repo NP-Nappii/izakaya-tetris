@@ -18,7 +18,7 @@
   <header class="top">
     <div class="title-block">
       <h1>居酒屋テトリス</h1>
-      <p>間食するとストックが1つ貯まる。「ミノを出す」を押した瞬間、種類がランダムに決まって落ちてくる。</p>
+      <p>1品完食でストック＋1。ミノは7種＋スカ＋自由選択の9択からランダム。目標ライン数を消せばクリア。</p>
     </div>
     <button class="theme-toggle" id="themeToggle">ダーク／ライト切替</button>
   </header>
@@ -35,6 +35,7 @@
         <button class="ctrl-btn" id="btnDrop">⤓</button>
       </div>
       <div class="status-line" id="statusLine">間食してストックを貯めよう</div>
+      <button class="giveup-btn" id="giveUpBtn">もう食べられない・飲めない（ギブアップ）</button>
     </div>
 
     <div class="panel">
@@ -44,7 +45,9 @@
           <div class="stock-count" id="stockCountEl">0<span class="unit">個</span></div>
           <button class="spawn-btn" id="spawnBtn">ミノを出す</button>
         </div>
-        <div class="stock-hint">押した瞬間にミノの種類が決まります。落下中はもう一つは出せません。</div>
+        <div class="stock-hint">押した瞬間、下の9択からランダムでミノの種類が決まります。落下中はもう一つは出せません。</div>
+        <div class="chip-grid" id="excludeChips"></div>
+        <div class="stock-hint" style="margin-top:8px;">チップをタップすると、ストックを1消費して次の抽選からその候補を除外できます（残り2つ以上のときのみ）。</div>
       </div>
 
       <div class="card">
@@ -58,21 +61,25 @@
 
       <div class="card">
         <h2>設定</h2>
+        <div class="setting-row" style="margin-bottom:12px;">
+          <span>目標ライン数（消したらクリア）</span>
+          <input type="number" class="number-input" id="targetLinesInput" min="1" max="40" value="3">
+        </div>
         <div class="setting-row">
-          <span>ミノは全種類から選べる</span>
+          <span>詰み盤面スタート</span>
           <label class="switch">
-            <input type="checkbox" id="chooseModeToggle">
+            <input type="checkbox" id="garbageStartToggle">
             <span class="slider"></span>
           </label>
         </div>
         <p style="font-size:12px; color:var(--paper-dim); margin:8px 0 0;">
-          オフ（何もなし）＝「ミノを出す」を押すと完全ランダムで決定。オンにすると押すたびに7種類から選べる。
+          オンにすると、天井ギリギリまで積み上がった詰み盤面からスタート（高難易度・救済モード）。次回リセット時から反映されます。
         </p>
       </div>
 
       <div class="card">
         <h2>戦績</h2>
-        <div class="setting-row"><span>消したライン</span><span id="statLines">0</span></div>
+        <div class="setting-row"><span>消したライン</span><span id="statLines">0 / 3</span></div>
         <div class="setting-row"><span>間食した回数</span><span id="statEat">0</span></div>
       </div>
 
@@ -93,7 +100,7 @@
   <div class="modal">
     <h3 id="endTitle">ゲームオーバー</h3>
     <p id="endMessage"></p>
-    <div class="stat-row"><span>消したライン</span><span id="endLines">0</span></div>
+    <div class="stat-row"><span>消したライン</span><span id="endLines">0 / 3</span></div>
     <div class="stat-row"><span>間食した回数</span><span id="endEat">0</span></div>
     <button class="modal-btn" id="endRestart">もう一度挑戦する</button>
   </div>
