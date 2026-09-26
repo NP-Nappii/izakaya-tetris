@@ -2,7 +2,7 @@
   "use strict";
 
   var COLS = 10, ROWS = 20, BLOCK = 30;
-  var STORAGE_KEY = "izakaya_tetris_save_v2";
+  var STORAGE_KEY = "izakaya_tetris_save_v3";
 
   var SHAPES = {
     I: [[1,1,1,1]],
@@ -18,17 +18,27 @@
     S: "#5fbf7a", Z: "#e0574c", J: "#5b83e0", L: "#e8942e"
   };
   var TYPES = Object.keys(SHAPES);
+  // The 9 possible draw outcomes: 7 mino types + "スカ" (miss) + free choice
+  var OUTCOMES = TYPES.concat(["MISS", "FREE"]);
+  var OUTCOME_LABEL = {
+    I: "I", O: "O", T: "T", S: "S", Z: "Z", J: "J", L: "L",
+    MISS: "スカ", FREE: "自由選択"
+  };
   var GARBAGE_COLOR = "#7d7466";
   var DROP_INTERVAL_BASE = 700;
 
   var state = null;
 
   function freshState() {
+    var useGarbage = state ? state.useGarbageStart : true;
+    var targetLines = state ? state.targetLines : 3;
     return {
-      board: makeGarbageBoard(),
+      board: useGarbage ? makeGarbageBoard() : makeEmptyBoard(),
       active: null,
       stockCount: 0,
-      chooseMode: false,
+      excluded: [],
+      targetLines: targetLines,
+      useGarbageStart: useGarbage,
       linesCleared: 0,
       eatCount: 0,
       log: [],
@@ -37,9 +47,14 @@
     };
   }
 
-  function makeGarbageBoard() {
+  function makeEmptyBoard() {
     var board = [];
     for (var r = 0; r < ROWS; r++) board.push(new Array(COLS).fill(null));
+    return board;
+  }
+
+  function makeGarbageBoard() {
+    var board = makeEmptyBoard();
     var garbageRows = 9;
     for (var gr = ROWS - garbageRows; gr < ROWS; gr++) {
       var gaps = 2 + Math.floor(Math.random() * 2);
@@ -64,11 +79,13 @@
       if (!raw) return null;
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.board) return null;
+      if (!parsed.excluded) parsed.excluded = [];
+      if (typeof parsed.targetLines !== "number") parsed.targetLines = 3;
+      if (typeof parsed.useGarbageStart !== "boolean") parsed.useGarbageStart = true;
       return parsed;
     } catch (e) { return null; }
   }
 
-  function randomType() { return TYPES[Math.floor(Math.random() * TYPES.length)]; }
   function cloneMatrix(m) { return m.map(function (row) { return row.slice(); }); }
   function spawnPieceOfType(type) {
     var matrix = cloneMatrix(SHAPES[type]);
@@ -174,17 +191,15 @@
     }
     if (cleared > 0) {
       state.linesCleared += cleared;
-      setStatus(cleared + "ライン消去！");
+      setStatus(cleared + "ライン消去！ (" + state.linesCleared + " / " + state.targetLines + ")");
     }
   }
 
-  function boardIsClear() {
-    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) if (state.board[r][c]) return false;
-    return true;
-  }
-
   function checkWin() {
-    if (boardIsClear()) { state.won = true; showEnd(true); }
+    if (state.linesCleared >= state.targetLines) {
+      state.won = true;
+      showEnd(true);
+    }
   }
 
   function triggerGameOver(msg) {
@@ -194,21 +209,52 @@
     save();
   }
 
-  // ---------- stock / spawn ----------
+  function giveUp() {
+    if (state.over || state.won) return;
+    if (!window.confirm("本当にギブアップしますか？もう食べられない／飲めない、ということで終了します。")) return;
+    triggerGameOver("ギブアップ…満腹・酔いの限界でリタイアしました。");
+  }
+
+  // ---------- stock / exclusion / draw ----------
+  function toggleExclude(outcome) {
+    if (state.over || state.won) return;
+    if (state.excluded.indexOf(outcome) !== -1) return;
+    var remaining = OUTCOMES.length - state.excluded.length;
+    if (remaining <= 1) return;
+    if (state.stockCount <= 0) return;
+    state.stockCount -= 1;
+    state.excluded.push(outcome);
+    save();
+    render();
+  }
+
   function requestSpawn() {
     if (state.over || state.won) return;
     if (state.active) return;
     if (state.stockCount <= 0) return;
 
-    if (state.chooseMode) {
-      openChooseModal(function (type) { doSpawn(type); });
-    } else {
-      doSpawn(randomType());
-    }
+    state.stockCount -= 1;
+    var pool = OUTCOMES.filter(function (o) { return state.excluded.indexOf(o) === -1; });
+    state.excluded = [];
+    var outcome = pool[Math.floor(Math.random() * pool.length)];
+    handleOutcome(outcome);
   }
 
-  function doSpawn(type) {
-    state.stockCount -= 1;
+  function handleOutcome(outcome) {
+    if (outcome === "MISS") {
+      setStatus("スカ…ハズレでした。ストックを1消費しました。");
+      save();
+      render();
+      return;
+    }
+    if (outcome === "FREE") {
+      openChooseModal(function (type) { trySpawnType(type); });
+      return;
+    }
+    trySpawnType(outcome);
+  }
+
+  function trySpawnType(type) {
     var piece = spawnPieceOfType(type);
     if (collides(piece.matrix, piece.row, piece.col)) {
       triggerGameOver("盤面が完全に埋まりました。KO...");
@@ -301,6 +347,21 @@
     document.getElementById("btnRotate").disabled = moveDisabled;
     document.getElementById("btnDrop").disabled = moveDisabled;
 
+    // exclusion chips
+    var chipWrap = document.getElementById("excludeChips");
+    chipWrap.innerHTML = "";
+    var remaining = OUTCOMES.length - state.excluded.length;
+    OUTCOMES.forEach(function (o) {
+      var chip = document.createElement("button");
+      var isExcluded = state.excluded.indexOf(o) !== -1;
+      chip.className = "chip" + (isExcluded ? " chip-excluded" : "");
+      chip.textContent = OUTCOME_LABEL[o];
+      chip.disabled = isExcluded || state.stockCount <= 0 || remaining <= 1 || state.over || state.won || !!state.active;
+      if (!isExcluded && o in COLORS) { chip.style.borderColor = COLORS[o]; }
+      chip.onclick = function () { toggleExclude(o); };
+      chipWrap.appendChild(chip);
+    });
+
     var logList = document.getElementById("logList");
     logList.innerHTML = "";
     state.log.slice(0, 8).forEach(function (entry) {
@@ -309,10 +370,12 @@
       logList.appendChild(li);
     });
 
-    document.getElementById("statLines").textContent = state.linesCleared;
+    document.getElementById("statLines").textContent = state.linesCleared + " / " + state.targetLines;
     document.getElementById("statEat").textContent = state.eatCount;
 
-    document.getElementById("chooseModeToggle").checked = state.chooseMode;
+    document.getElementById("targetLinesInput").value = state.targetLines;
+    document.getElementById("garbageStartToggle").checked = state.useGarbageStart;
+    document.getElementById("giveUpBtn").disabled = state.over || state.won;
   }
 
   function drawBlock(col, row, color) {
@@ -333,11 +396,11 @@
 
   function showEnd(won, msg) {
     var overlay = document.getElementById("endOverlay");
-    document.getElementById("endTitle").textContent = won ? "生還成功！" : "ゲームオーバー";
+    document.getElementById("endTitle").textContent = won ? "クリア成功！" : "ゲームオーバー";
     document.getElementById("endMessage").textContent = won
-      ? "積み上がった盤面を完全に消し切りました。お会計、お願いします。"
+      ? ("目標の" + state.targetLines + "ライン消去を達成しました。お会計、お願いします。")
       : (msg || "戦線離脱です。");
-    document.getElementById("endLines").textContent = state.linesCleared;
+    document.getElementById("endLines").textContent = state.linesCleared + " / " + state.targetLines;
     document.getElementById("endEat").textContent = state.eatCount;
     overlay.classList.add("show");
   }
@@ -363,6 +426,7 @@
   document.getElementById("btnDrop").addEventListener("click", hardDrop);
   document.getElementById("spawnBtn").addEventListener("click", requestSpawn);
   document.getElementById("btnEat").addEventListener("click", eatItem);
+  document.getElementById("giveUpBtn").addEventListener("click", giveUp);
 
   document.addEventListener("keydown", function (e) {
     if (state.over || state.won) return;
@@ -373,8 +437,18 @@
     else if (e.key === " ") { e.preventDefault(); hardDrop(); }
   });
 
-  document.getElementById("chooseModeToggle").addEventListener("change", function (e) {
-    state.chooseMode = e.target.checked;
+  document.getElementById("targetLinesInput").addEventListener("change", function (e) {
+    var v = parseInt(e.target.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > 40) v = 40;
+    state.targetLines = v;
+    checkWin();
+    save();
+    render();
+  });
+
+  document.getElementById("garbageStartToggle").addEventListener("change", function (e) {
+    state.useGarbageStart = e.target.checked;
     save();
   });
 
