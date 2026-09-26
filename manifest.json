@@ -1,15 +1,15 @@
 {
   "name": "居酒屋テトリス",
   "short_name": "居酒屋テトリス",
+  "description": "間食してストックを貯め、詰み盤面を消し切る大食い・飲みパズルゲーム",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#121212",
-  "theme_color": "#121212",
+  "orientation": "portrait",
+  "background_color": "#17110d",
+  "theme_color": "#1b1410",
+  "lang": "ja",
   "icons": [
-    {
-      "src": "https://via.placeholder.com/192",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
