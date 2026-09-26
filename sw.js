@@ -1,4 +1,5 @@
-const CACHE_NAME = "izakaya-tetris-v4";
+const CACHE_NAME =
+  "izakaya-tetris-v5";
 
 const ASSETS = [
   "./",
@@ -9,63 +10,96 @@ const ASSETS = [
   "./icon.svg"
 ];
 
-self.addEventListener("install", (event) => {
 
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) =>
-        cache.addAll(ASSETS)
-      )
-  );
+self.addEventListener(
+  "install",
+  (event) => {
 
-  self.skipWaiting();
-});
+    event.waitUntil(
 
-
-self.addEventListener("activate", (event) => {
-
-  event.waitUntil(
-
-    caches
-      .keys()
-      .then((keys) =>
-
-        Promise.all(
-
-          keys
-            .filter(
-              (key) =>
-                key !== CACHE_NAME
-            )
-
-            .map(
-              (key) =>
-                caches.delete(key)
+      caches
+        .open(
+          CACHE_NAME
+        )
+        .then(
+          (cache) =>
+            cache.addAll(
+              ASSETS
             )
         )
-      )
-  );
 
-  self.clients.claim();
-});
+    );
+
+    self.skipWaiting();
+
+  }
+);
 
 
-self.addEventListener("fetch", (event) => {
+self.addEventListener(
+  "activate",
+  (event) => {
 
-  event.respondWith(
+    event.waitUntil(
 
-    caches
-      .match(event.request)
-      .then((cached) => {
+      caches
+        .keys()
+        .then(
+          (keys) =>
 
-        return (
-          cached ||
-          fetch(event.request).catch(
-            () => cached
-          )
-        );
+            Promise.all(
 
-      })
-  );
-});
+              keys
+                .filter(
+                  (key) =>
+                    key !==
+                    CACHE_NAME
+                )
+
+                .map(
+                  (key) =>
+                    caches.delete(
+                      key
+                    )
+                )
+
+            )
+        )
+
+    );
+
+    self.clients.claim();
+
+  }
+);
+
+
+self.addEventListener(
+  "fetch",
+  (event) => {
+
+    event.respondWith(
+
+      caches
+        .match(
+          event.request
+        )
+        .then(
+          (cached) => {
+
+            if (cached)
+              return cached;
+
+            return fetch(
+              event.request
+            ).catch(
+              () => cached
+            );
+
+          }
+        )
+
+    );
+
+  }
+);
