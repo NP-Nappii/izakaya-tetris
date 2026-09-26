@@ -1,22 +1,60 @@
 (function () {
   "use strict";
 
-  var COLS = 10, ROWS = 20, BLOCK = 30;
+  var COLS = 10;
+  var ROWS = 20;
+  var BLOCK = 30;
 
-  var STORAGE_KEY = "izakaya_tetris_save_v4";
+  var STORAGE_KEY =
+    "izakaya_tetris_save_v5";
+
+  var LEGACY_STORAGE_KEY =
+    "izakaya_tetris_save_v4";
+
   var MAX_TARGET_LINES = 20;
 
+
   var SHAPES = {
-    I: [[1,1,1,1]],
-    O: [[1,1],[1,1]],
-    T: [[0,1,0],[1,1,1]],
-    S: [[0,1,1],[1,1,0]],
-    Z: [[1,1,0],[0,1,1]],
-    J: [[1,0,0],[1,1,1]],
-    L: [[0,0,1],[1,1,1]]
+
+    I: [
+      [1,1,1,1]
+    ],
+
+    O: [
+      [1,1],
+      [1,1]
+    ],
+
+    T: [
+      [0,1,0],
+      [1,1,1]
+    ],
+
+    S: [
+      [0,1,1],
+      [1,1,0]
+    ],
+
+    Z: [
+      [1,1,0],
+      [0,1,1]
+    ],
+
+    J: [
+      [1,0,0],
+      [1,1,1]
+    ],
+
+    L: [
+      [0,0,1],
+      [1,1,1]
+    ]
+
   };
 
+
   var COLORS = {
+
     I: "#3fb7c9",
     O: "#e8c14a",
     T: "#b478d6",
@@ -24,14 +62,23 @@
     Z: "#e0574c",
     J: "#5b83e0",
     L: "#e8942e"
+
   };
 
-  var TYPES = Object.keys(SHAPES);
 
-  // 7種類のミノ + スカ + 自由選択
-  var OUTCOMES = TYPES.concat(["MISS", "FREE"]);
+  var TYPES =
+    Object.keys(SHAPES);
+
+
+  var OUTCOMES =
+    TYPES.concat([
+      "MISS",
+      "FREE"
+    ]);
+
 
   var OUTCOME_LABEL = {
+
     I: "I",
     O: "O",
     T: "T",
@@ -39,19 +86,26 @@
     Z: "Z",
     J: "J",
     L: "L",
+
     MISS: "スカ",
+
     FREE: "自由選択"
+
   };
 
-  var GARBAGE_COLOR = "#7d7466";
-  var DROP_INTERVAL_BASE = 700;
+
+  var GARBAGE_COLOR =
+    "#7d7466";
+
 
   var state = null;
+
   var chooseCallback = null;
 
   var ctx = null;
 
   var lastTime = 0;
+
   var acc = 0;
 
 
@@ -62,16 +116,21 @@
   function freshState() {
 
     var targetLines =
-      state && typeof state.targetLines === "number"
+      state &&
+      typeof state.targetLines === "number"
         ? state.targetLines
         : 3;
 
-    targetLines = clampTarget(targetLines);
+    targetLines =
+      clampTarget(targetLines);
 
-    var now = Date.now();
 
     return {
-      board: makeGarbageBoard(targetLines),
+
+      board:
+        makeGarbageBoard(
+          targetLines
+        ),
 
       active: null,
 
@@ -79,7 +138,8 @@
 
       excluded: [],
 
-      targetLines: targetLines,
+      targetLines:
+        targetLines,
 
       linesCleared: 0,
 
@@ -91,12 +151,27 @@
 
       won: false,
 
-      startedAt: now,
+      startedAt:
+        Date.now(),
 
       elapsedMs: 0,
 
-      endedAt: null
+      endedAt: null,
+
+      // 1段落ちるまでのミリ秒
+      dropInterval: 700,
+
+      // 重複設定
+      duplicateMode: "allow",
+
+      // 現在の店で登録済みの名前
+      registeredItems: [],
+
+      // 現在の店
+      storeName: "最初の店"
+
     };
+
   }
 
 
@@ -104,11 +179,14 @@
 
     v = parseInt(v, 10);
 
-    if (isNaN(v)) v = 3;
+    if (isNaN(v))
+      v = 3;
 
-    if (v < 1) v = 1;
+    if (v < 1)
+      v = 1;
 
-    if (v > MAX_TARGET_LINES) v = MAX_TARGET_LINES;
+    if (v > MAX_TARGET_LINES)
+      v = MAX_TARGET_LINES;
 
     return v;
   }
@@ -118,8 +196,16 @@
 
     var board = [];
 
-    for (var r = 0; r < ROWS; r++) {
-      board.push(new Array(COLS).fill(null));
+    for (
+      var r = 0;
+      r < ROWS;
+      r++
+    ) {
+
+      board.push(
+        new Array(COLS).fill(null)
+      );
+
     }
 
     return board;
@@ -130,137 +216,392 @@
   // 詰み盤面
   // =========================================================
 
-  function makeGarbageBoard(garbageRows) {
+  function makeGarbageBoard(
+    garbageRows
+  ) {
 
-    var board = makeEmptyBoard();
+    var board =
+      makeEmptyBoard();
+
 
     garbageRows = Math.min(
       ROWS,
-      Math.max(1, garbageRows)
+      Math.max(
+        1,
+        garbageRows
+      )
     );
 
+
     for (
-      var gr = ROWS - garbageRows;
+      var gr =
+        ROWS - garbageRows;
+
       gr < ROWS;
+
       gr++
     ) {
 
-      // 各段に2～3個の穴
-      var gaps = 2 + Math.floor(Math.random() * 2);
+      // 2～3個の穴を作成
+      var gaps =
+        2 +
+        Math.floor(
+          Math.random() * 2
+        );
+
 
       var gapCols = [];
 
-      while (gapCols.length < gaps) {
 
-        var c = Math.floor(
-          Math.random() * COLS
-        );
+      while (
+        gapCols.length < gaps
+      ) {
 
-        if (gapCols.indexOf(c) === -1) {
+        var c =
+          Math.floor(
+            Math.random() * COLS
+          );
+
+
+        if (
+          gapCols.indexOf(c)
+          === -1
+        ) {
+
           gapCols.push(c);
+
         }
+
       }
 
-      for (var col = 0; col < COLS; col++) {
 
-        if (gapCols.indexOf(col) === -1) {
-          board[gr][col] = GARBAGE_COLOR;
+      for (
+        var col = 0;
+        col < COLS;
+        col++
+      ) {
+
+        if (
+          gapCols.indexOf(col)
+          === -1
+        ) {
+
+          board[gr][col] =
+            GARBAGE_COLOR;
+
         }
+
       }
+
     }
+
 
     return board;
   }
 
 
   // =========================================================
-  // 保存・読み込み
+  // 保存
   // =========================================================
 
   function save() {
 
     try {
+
       window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify(state)
       );
+
     } catch (e) {}
+
   }
 
 
+  // =========================================================
+  // 読み込み
+  // =========================================================
+
   function load() {
+
+    var parsed =
+      tryLoad(
+        STORAGE_KEY
+      );
+
+
+    var migrated = false;
+
+
+    if (!parsed) {
+
+      parsed =
+        tryLoad(
+          LEGACY_STORAGE_KEY
+        );
+
+      migrated =
+        !!parsed;
+
+    }
+
+
+    if (
+      !parsed ||
+      !parsed.board ||
+      !Array.isArray(
+        parsed.board
+      )
+    ) {
+
+      return null;
+
+    }
+
+
+    parsed.targetLines =
+      clampTarget(
+        parsed.targetLines
+      );
+
+
+    if (
+      !Array.isArray(
+        parsed.excluded
+      )
+    ) {
+
+      parsed.excluded = [];
+
+    }
+
+
+    if (
+      !Array.isArray(
+        parsed.log
+      )
+    ) {
+
+      parsed.log = [];
+
+    }
+
+
+    if (
+      typeof parsed.stockCount
+      !== "number"
+    ) {
+
+      parsed.stockCount = 0;
+
+    }
+
+
+    if (
+      typeof parsed.linesCleared
+      !== "number"
+    ) {
+
+      parsed.linesCleared = 0;
+
+    }
+
+
+    if (
+      typeof parsed.eatCount
+      !== "number"
+    ) {
+
+      parsed.eatCount = 0;
+
+    }
+
+
+    if (
+      typeof parsed.over
+      !== "boolean"
+    ) {
+
+      parsed.over = false;
+
+    }
+
+
+    if (
+      typeof parsed.won
+      !== "boolean"
+    ) {
+
+      parsed.won = false;
+
+    }
+
+
+    if (
+      typeof parsed.startedAt
+      !== "number"
+    ) {
+
+      parsed.startedAt =
+        Date.now();
+
+    }
+
+
+    if (
+      typeof parsed.elapsedMs
+      !== "number"
+    ) {
+
+      parsed.elapsedMs = 0;
+
+    }
+
+
+    if (
+      !parsed.endedAt ||
+      typeof parsed.endedAt
+      !== "number"
+    ) {
+
+      parsed.endedAt =
+        null;
+
+    }
+
+
+    parsed.dropInterval =
+      clampDropInterval(
+        parsed.dropInterval
+      );
+
+
+    if (
+      parsed.duplicateMode
+      !== "deny" &&
+      parsed.duplicateMode
+      !== "allow"
+    ) {
+
+      parsed.duplicateMode =
+        "allow";
+
+    }
+
+
+    if (
+      typeof parsed.storeName
+      !== "string" ||
+      !parsed.storeName.trim()
+    ) {
+
+      parsed.storeName =
+        "最初の店";
+
+    }
+
+
+    if (
+      !Array.isArray(
+        parsed.registeredItems
+      )
+    ) {
+
+      parsed.registeredItems =
+        [];
+
+    }
+
+
+    // v4からの移行
+    if (
+      migrated &&
+      parsed.duplicateMode
+      === "deny"
+    ) {
+
+      parsed.registeredItems =
+        parsed.log
+
+          .filter(
+            function (entry) {
+
+              return (
+                !entry.store ||
+                entry.store
+                === parsed.storeName
+              );
+
+            }
+          )
+
+          .map(
+            function (entry) {
+
+              return normalizeItemName(
+                entry.name || ""
+              );
+
+            }
+          )
+
+          .filter(Boolean);
+
+
+      parsed.registeredItems =
+        unique(
+          parsed.registeredItems
+        );
+
+    }
+
+
+    return parsed;
+  }
+
+
+  function tryLoad(key) {
 
     try {
 
       var raw =
         window.localStorage.getItem(
-          STORAGE_KEY
+          key
         );
 
-      if (!raw) return null;
 
-      var parsed = JSON.parse(raw);
-
-      if (
-        !parsed ||
-        !parsed.board ||
-        !Array.isArray(parsed.board)
-      ) {
+      if (!raw)
         return null;
-      }
 
-      parsed.targetLines =
-        clampTarget(parsed.targetLines);
 
-      if (!Array.isArray(parsed.excluded)) {
-        parsed.excluded = [];
-      }
-
-      if (!Array.isArray(parsed.log)) {
-        parsed.log = [];
-      }
-
-      if (typeof parsed.stockCount !== "number") {
-        parsed.stockCount = 0;
-      }
-
-      if (typeof parsed.linesCleared !== "number") {
-        parsed.linesCleared = 0;
-      }
-
-      if (typeof parsed.eatCount !== "number") {
-        parsed.eatCount = 0;
-      }
-
-      if (typeof parsed.over !== "boolean") {
-        parsed.over = false;
-      }
-
-      if (typeof parsed.won !== "boolean") {
-        parsed.won = false;
-      }
-
-      if (typeof parsed.startedAt !== "number") {
-        parsed.startedAt = Date.now();
-      }
-
-      if (typeof parsed.elapsedMs !== "number") {
-        parsed.elapsedMs = 0;
-      }
-
-      if (
-        parsed.endedAt !== null &&
-        typeof parsed.endedAt !== "number"
-      ) {
-        parsed.endedAt = null;
-      }
-
-      return parsed;
+      return JSON.parse(
+        raw
+      );
 
     } catch (e) {
 
       return null;
+
     }
+  }
+
+
+  function unique(arr) {
+
+    return arr.filter(
+      function (
+        value,
+        index
+      ) {
+
+        return (
+          arr.indexOf(value)
+          === index
+        );
+
+      }
+    );
+
   }
 
 
@@ -270,59 +611,108 @@
 
   function cloneMatrix(m) {
 
-    return m.map(function (row) {
-      return row.slice();
-    });
+    return m.map(
+      function (row) {
+
+        return row.slice();
+
+      }
+    );
+
   }
 
 
-  function spawnPieceOfType(type) {
+  function spawnPieceOfType(
+    type
+  ) {
 
     var matrix =
-      cloneMatrix(SHAPES[type]);
+      cloneMatrix(
+        SHAPES[type]
+      );
+
 
     var col =
       Math.floor(
-        (COLS - matrix[0].length) / 2
+        (
+          COLS -
+          matrix[0].length
+        ) / 2
       );
 
+
     return {
+
       type: type,
+
       matrix: matrix,
+
       row: 0,
+
       col: col,
-      color: COLORS[type]
+
+      color:
+        COLORS[type]
+
     };
+
   }
 
 
-  function collides(matrix, row, col) {
+  function collides(
+    matrix,
+    row,
+    col
+  ) {
 
-    for (var r = 0; r < matrix.length; r++) {
+    for (
+      var r = 0;
+      r < matrix.length;
+      r++
+    ) {
 
-      for (var c = 0; c < matrix[r].length; c++) {
+      for (
+        var c = 0;
+        c < matrix[r].length;
+        c++
+      ) {
 
-        if (!matrix[r][c]) continue;
+        if (
+          !matrix[r][c]
+        ) continue;
 
-        var br = row + r;
-        var bc = col + c;
+
+        var br =
+          row + r;
+
+        var bc =
+          col + c;
+
 
         if (
           bc < 0 ||
           bc >= COLS ||
           br >= ROWS
         ) {
+
           return true;
+
         }
+
 
         if (
           br >= 0 &&
           state.board[br][bc]
         ) {
+
           return true;
+
         }
+
       }
+
     }
+
 
     return false;
   }
@@ -330,22 +720,46 @@
 
   function rotateMatrix(m) {
 
-    var rows = m.length;
-    var cols = m[0].length;
+    var rows =
+      m.length;
+
+    var cols =
+      m[0].length;
 
     var res = [];
 
-    for (var c = 0; c < cols; c++) {
+
+    for (
+      var c = 0;
+      c < cols;
+      c++
+    ) {
 
       var newRow = [];
 
-      for (var r = rows - 1; r >= 0; r--) {
 
-        newRow.push(m[r][c]);
+      for (
+        var r =
+          rows - 1;
+
+        r >= 0;
+
+        r--
+      ) {
+
+        newRow.push(
+          m[r][c]
+        );
+
       }
 
-      res.push(newRow);
+
+      res.push(
+        newRow
+      );
+
     }
+
 
     return res;
   }
@@ -353,19 +767,36 @@
 
   function tryRotate() {
 
-    if (!state.active) return;
+    if (!state.active)
+      return;
+
 
     var rotated =
       rotateMatrix(
         state.active.matrix
       );
 
-    var kicks = [0, -1, 1, -2, 2];
 
-    for (var i = 0; i < kicks.length; i++) {
+    var kicks =
+      [
+        0,
+        -1,
+        1,
+        -2,
+        2
+      ];
+
+
+    for (
+      var i = 0;
+      i < kicks.length;
+      i++
+    ) {
 
       var newCol =
-        state.active.col + kicks[i];
+        state.active.col +
+        kicks[i];
+
 
       if (
         !collides(
@@ -375,8 +806,11 @@
         )
       ) {
 
-        state.active.matrix = rotated;
-        state.active.col = newCol;
+        state.active.matrix =
+          rotated;
+
+        state.active.col =
+          newCol;
 
         render();
         save();
@@ -389,10 +823,14 @@
 
   function tryMove(dx) {
 
-    if (!state.active) return;
+    if (!state.active)
+      return;
+
 
     var newCol =
-      state.active.col + dx;
+      state.active.col +
+      dx;
+
 
     if (
       !collides(
@@ -402,17 +840,22 @@
       )
     ) {
 
-      state.active.col = newCol;
+      state.active.col =
+        newCol;
 
       render();
       save();
+
     }
+
   }
 
 
   function softDrop() {
 
-    if (!state.active) return;
+    if (!state.active)
+      return;
+
 
     if (
       !collides(
@@ -429,13 +872,17 @@
     } else {
 
       lockPiece();
+
     }
+
   }
 
 
   function hardDrop() {
 
-    if (!state.active) return;
+    if (!state.active)
+      return;
+
 
     while (
       !collides(
@@ -446,7 +893,9 @@
     ) {
 
       state.active.row += 1;
+
     }
+
 
     lockPiece();
   }
@@ -454,16 +903,32 @@
 
   function lockPiece() {
 
-    var p = state.active;
+    var p =
+      state.active;
 
-    for (var r = 0; r < p.matrix.length; r++) {
 
-      for (var c = 0; c < p.matrix[r].length; c++) {
+    for (
+      var r = 0;
+      r < p.matrix.length;
+      r++
+    ) {
 
-        if (!p.matrix[r][c]) continue;
+      for (
+        var c = 0;
+        c < p.matrix[r].length;
+        c++
+      ) {
 
-        var br = p.row + r;
-        var bc = p.col + c;
+        if (!p.matrix[r][c])
+          continue;
+
+
+        var br =
+          p.row + r;
+
+        var bc =
+          p.col + c;
+
 
         if (br < 0) {
 
@@ -474,79 +939,126 @@
           return;
         }
 
-        state.board[br][bc] = p.color;
+
+        state.board[br][bc] =
+          p.color;
+
       }
+
     }
 
-    state.active = null;
+
+    state.active =
+      null;
+
 
     clearLines();
 
+
     checkWin();
 
-    if (!state.over && !state.won) {
+
+    if (
+      !state.over &&
+      !state.won
+    ) {
 
       setStatus(
+
         state.stockCount > 0
           ? "「ミノを出す」を押して続けよう"
           : "間食してストックを貯めよう"
+
       );
+
     }
+
 
     save();
 
     render();
+
   }
 
 
   // =========================================================
-  // ライン消去
+  // ライン
   // =========================================================
 
   function clearLines() {
 
     var cleared = 0;
 
-    for (var r = ROWS - 1; r >= 0; r--) {
+
+    for (
+      var r = ROWS - 1;
+      r >= 0;
+      r--
+    ) {
 
       var full = true;
 
-      for (var c = 0; c < COLS; c++) {
 
-        if (!state.board[r][c]) {
+      for (
+        var c = 0;
+        c < COLS;
+        c++
+      ) {
+
+        if (
+          !state.board[r][c]
+        ) {
 
           full = false;
 
           break;
+
         }
+
       }
+
 
       if (full) {
 
-        state.board.splice(r, 1);
+        state.board.splice(
+          r,
+          1
+        );
+
 
         state.board.unshift(
-          new Array(COLS).fill(null)
+          new Array(
+            COLS
+          ).fill(null)
         );
+
 
         cleared++;
 
         r++;
+
       }
+
     }
+
 
     if (cleared > 0) {
 
-      state.linesCleared += cleared;
+      state.linesCleared +=
+        cleared;
+
 
       setStatus(
+
         cleared +
         "ライン消去！ (" +
         state.linesCleared +
         " / " +
         state.targetLines +
         ")"
+
       );
+
     }
   }
 
@@ -554,50 +1066,64 @@
   function checkWin() {
 
     if (
-      state.linesCleared >= state.targetLines &&
+      state.linesCleared
+      >=
+      state.targetLines &&
       !state.won
     ) {
 
-      state.won = true;
+      state.won =
+        true;
 
       freezeElapsed();
 
       save();
 
       showEnd(true);
+
     }
   }
 
 
   function triggerGameOver(msg) {
 
-    state.over = true;
+    state.over =
+      true;
 
-    state.active = null;
+    state.active =
+      null;
 
     freezeElapsed();
 
-    showEnd(false, msg);
+    showEnd(
+      false,
+      msg
+    );
 
     save();
   }
 
 
-  // =========================================================
-  // ギブアップ
-  // =========================================================
-
   function giveUp() {
 
-    if (state.over || state.won) return;
+    if (
+      state.over ||
+      state.won
+    ) {
+
+      return;
+    }
+
 
     if (
       !window.confirm(
         "本当にギブアップしますか？もう食べられない／飲めない、ということで終了します。"
       )
     ) {
+
       return;
     }
+
 
     triggerGameOver(
       "ギブアップ…満腹・酔いの限界でリタイアしました。"
@@ -606,184 +1132,240 @@
 
 
   // =========================================================
-  // ストック・抽選・候補除外
+  // ストック・除外
   // =========================================================
 
-  function toggleExclude(outcome) {
+  function toggleExclude(
+    outcome
+  ) {
 
     if (
       state.over ||
       state.won ||
       state.active
     ) {
+
       return;
     }
 
+
     var idx =
-      state.excluded.indexOf(outcome);
-
-
-    // -----------------------------------------------------
-    // 除外解除
-    // -----------------------------------------------------
-
-    if (idx !== -1) {
-
-      // 除外時に使用したストックを返却
-      state.excluded.splice(idx, 1);
-
-      state.stockCount += 1;
-
-      setStatus(
-        OUTCOME_LABEL[outcome] +
-        "の除外を取り消しました。ストック＋1"
+      state.excluded.indexOf(
+        outcome
       );
 
+
+    // 除外解除
+    if (idx !== -1) {
+
+      state.excluded.splice(
+        idx,
+        1
+      );
+
+
+      state.stockCount +=
+        1;
+
+
+      setStatus(
+
+        OUTCOME_LABEL[outcome] +
+        "の除外を取り消しました。ストック＋1"
+
+      );
+
+
       save();
+
       render();
 
       return;
     }
 
 
-    // -----------------------------------------------------
-    // 新しく除外
-    // -----------------------------------------------------
-
     var remaining =
       OUTCOMES.length -
       state.excluded.length;
 
-    // 最低1候補は残す
-    if (remaining <= 1) return;
 
-    // ストックが必要
-    if (state.stockCount <= 0) return;
+    if (
+      remaining <= 1
+    ) {
 
-    state.stockCount -= 1;
+      return;
 
-    state.excluded.push(outcome);
+    }
 
-    setStatus(
-      OUTCOME_LABEL[outcome] +
-      "を次の抽選から除外しました。ストック－1"
+
+    if (
+      state.stockCount <= 0
+    ) {
+
+      return;
+
+    }
+
+
+    state.stockCount -=
+      1;
+
+
+    state.excluded.push(
+      outcome
     );
 
+
+    setStatus(
+
+      OUTCOME_LABEL[outcome] +
+      "を次の抽選から除外しました。ストック－1"
+
+    );
+
+
     save();
+
     render();
   }
 
 
   function requestSpawn() {
 
-    if (state.over || state.won) return;
+    if (
+      state.over ||
+      state.won
+    ) {
 
-    if (state.active) return;
+      return;
+    }
 
-    if (state.stockCount <= 0) return;
+
+    if (state.active)
+      return;
 
 
-    // -----------------------------------------------------
-    // 「ミノを出す」を押した瞬間に消費確定
-    // -----------------------------------------------------
+    if (
+      state.stockCount <= 0
+    ) {
 
+      return;
+    }
+
+
+    // 押した瞬間に消費確定
     state.stockCount -= 1;
 
 
-    // -----------------------------------------------------
-    // 除外されていない候補だけで抽選
-    // -----------------------------------------------------
-
     var pool =
-      OUTCOMES.filter(function (o) {
+      OUTCOMES.filter(
+        function (o) {
 
-        return (
-          state.excluded.indexOf(o) === -1
-        );
-      });
+          return (
+            state.excluded.indexOf(o)
+            === -1
+          );
+
+        }
+      );
 
 
-    // 抽選を行ったら除外リストをリセット
     state.excluded = [];
 
 
     var outcome =
       pool[
         Math.floor(
-          Math.random() * pool.length
+          Math.random() *
+          pool.length
         )
       ];
 
 
-    // -----------------------------------------------------
-    // スカの場合だけ盤面へスクロールしない
-    // -----------------------------------------------------
-
-    if (outcome !== "MISS") {
+    // スカ以外だけスクロール
+    if (
+      outcome !== "MISS"
+    ) {
 
       scrollBoardIntoView();
+
     }
 
 
-    handleOutcome(outcome);
+    handleOutcome(
+      outcome
+    );
   }
 
 
-  function handleOutcome(outcome) {
+  function handleOutcome(
+    outcome
+  ) {
 
-    // -----------------------------------------------------
     // スカ
-    // -----------------------------------------------------
-
-    if (outcome === "MISS") {
+    if (
+      outcome === "MISS"
+    ) {
 
       setStatus(
         "スカ…ハズレでした。ストックを1消費しました。盤面はそのままです。"
       );
 
+
       save();
+
       render();
 
       return;
     }
 
 
-    // -----------------------------------------------------
     // 自由選択
-    // -----------------------------------------------------
-
-    if (outcome === "FREE") {
+    if (
+      outcome === "FREE"
+    ) {
 
       setStatus(
         "自由選択：形を見てミノを選んでください。"
       );
 
-      openChooseModal(function (type) {
 
-        trySpawnType(type);
-      });
+      openChooseModal(
+        function (type) {
+
+          trySpawnType(
+            type
+          );
+
+        }
+      );
+
 
       save();
+
       render();
 
       return;
     }
 
 
-    // -----------------------------------------------------
     // 通常ミノ
-    // -----------------------------------------------------
-
-    trySpawnType(outcome);
+    trySpawnType(
+      outcome
+    );
   }
 
 
-  function trySpawnType(type) {
+  function trySpawnType(
+    type
+  ) {
 
     var piece =
-      spawnPieceOfType(type);
+      spawnPieceOfType(
+        type
+      );
 
-    // 出現位置で衝突
+
     if (
       collides(
         piece.matrix,
@@ -799,12 +1381,16 @@
       return;
     }
 
-    state.active = piece;
+
+    state.active =
+      piece;
+
 
     setStatus(
       type +
       "ミノが出ました。落としてください。"
     );
+
 
     save();
 
@@ -813,53 +1399,130 @@
 
 
   // =========================================================
-  // 間食記録
+  // 間食・重複
   // =========================================================
+
+  function normalizeItemName(
+    name
+  ) {
+
+    return String(name)
+      .normalize("NFKC")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+  }
+
 
   function eatItem() {
 
-    if (state.over || state.won) return;
+    if (
+      state.over ||
+      state.won
+    ) {
 
-    var name =
-      document
-        .getElementById("itemName")
-        .value
-        .trim();
-
-    if (!name) {
-      name = "間食";
+      return;
     }
 
 
+    var name =
+      document
+        .getElementById(
+          "itemName"
+        )
+        .value
+        .trim();
+
+
+    if (!name)
+      name = "間食";
+
+
+    var normalized =
+      normalizeItemName(
+        name
+      );
+
+
+    // 重複NG
+    if (
+      state.duplicateMode ===
+      "deny" &&
+      state.registeredItems
+        .indexOf(
+          normalized
+        ) !== -1
+    ) {
+
+      setStatus(
+
+        "「" +
+        name +
+        "」は現在の店ですでに登録済みです。重複NGのため登録できません。"
+
+      );
+
+
+      render();
+
+      return;
+    }
+
+
+    // ストック追加
     state.stockCount += 1;
 
     state.eatCount += 1;
 
 
-    state.log.unshift({
+    if (
+      state.duplicateMode ===
+      "deny"
+    ) {
 
-      name: name,
+      state.registeredItems.push(
+        normalized
+      );
 
-      t: new Date()
-        .toLocaleTimeString(
-          "ja-JP",
-          {
-            hour: "2-digit",
-            minute: "2-digit"
-          }
-        )
-    });
-
-
-    if (state.log.length > 30) {
-
-      state.log.pop();
     }
 
 
-    document.getElementById(
-      "itemName"
-    ).value = "";
+    // 店名も保存
+    state.log.unshift({
+
+      name:
+        name,
+
+      store:
+        state.storeName,
+
+      t:
+        new Date()
+          .toLocaleTimeString(
+            "ja-JP",
+            {
+              hour: "2-digit",
+              minute: "2-digit"
+            }
+          )
+
+    });
+
+
+    if (
+      state.log.length > 30
+    ) {
+
+      state.log.pop();
+
+    }
+
+
+    document
+      .getElementById(
+        "itemName"
+      )
+      .value = "";
 
 
     if (!state.active) {
@@ -867,7 +1530,96 @@
       setStatus(
         "「ミノを出す」を押して盤面に置こう"
       );
+
     }
+
+
+    save();
+
+    render();
+  }
+
+
+  // =========================================================
+  // 店変更
+  // =========================================================
+
+  function changeStore() {
+
+    if (
+      state.over ||
+      state.won
+    ) {
+
+      return;
+    }
+
+
+    var nextName =
+      window.prompt(
+
+        "変更先の店名を入力してください。\n" +
+        "店を変えると、この店での重複NG判定はリセットされます。",
+
+        state.storeName
+
+      );
+
+
+    // キャンセル
+    if (
+      nextName === null
+    ) {
+
+      return;
+
+    }
+
+
+    nextName =
+      nextName.trim();
+
+
+    if (!nextName) {
+
+      setStatus(
+        "店名が空欄のため、店は変更しませんでした。"
+      );
+
+      return;
+    }
+
+
+    if (
+      nextName ===
+      state.storeName
+    ) {
+
+      setStatus(
+        "現在と同じ店です。重複判定もそのままです。"
+      );
+
+      return;
+    }
+
+
+    state.storeName =
+      nextName;
+
+
+    // 店を変えたので
+    // 重複判定をリセット
+    state.registeredItems =
+      [];
+
+
+    setStatus(
+
+      "「" +
+      nextName +
+      "」に店を変更しました。重複NGの判定をリセットしました。"
+
+    );
 
 
     save();
@@ -880,12 +1632,15 @@
   // 自由選択
   // =========================================================
 
-  function openChooseModal(callback) {
+  function openChooseModal(
+    callback
+  ) {
 
     var overlay =
       document.getElementById(
         "chooseOverlay"
       );
+
 
     var grid =
       document.getElementById(
@@ -893,139 +1648,168 @@
       );
 
 
-    chooseCallback = callback;
+    chooseCallback =
+      callback;
+
 
     grid.innerHTML = "";
 
 
-    TYPES.forEach(function (type) {
+    TYPES.forEach(
+      function (type) {
 
-      var btn =
-        document.createElement(
-          "button"
+        var btn =
+          document.createElement(
+            "button"
+          );
+
+
+        btn.className =
+          "choice-piece";
+
+
+        btn.style.borderColor =
+          COLORS[type];
+
+
+        btn.type =
+          "button";
+
+
+        btn.setAttribute(
+          "aria-label",
+          type +
+          "ミノを選ぶ"
         );
 
 
-      btn.className =
-        "choice-piece";
-
-      btn.style.borderColor =
-        COLORS[type];
-
-      btn.type = "button";
-
-      btn.setAttribute(
-        "aria-label",
-        type + "ミノを選ぶ"
-      );
+        // ミノの形をプレビュー
+        var preview =
+          document.createElement(
+            "div"
+          );
 
 
-      // ---------------------------------------------------
-      // ミノ形プレビュー
-      // ---------------------------------------------------
-
-      var preview =
-        document.createElement(
-          "div"
-        );
-
-      preview.className =
-        "mino-preview";
+        preview.className =
+          "mino-preview";
 
 
-      var shape =
-        SHAPES[type];
+        var shape =
+          SHAPES[type];
 
 
-      preview.style.gridTemplateColumns =
-        "repeat(" +
-        shape[0].length +
-        ", 12px)";
-
-      preview.style.gridTemplateRows =
-        "repeat(" +
-        shape.length +
-        ", 12px)";
+        preview.style
+          .gridTemplateColumns =
+            "repeat(" +
+            shape[0].length +
+            ", 12px)";
 
 
-      for (
-        var r = 0;
-        r < shape.length;
-        r++
-      ) {
+        preview.style
+          .gridTemplateRows =
+            "repeat(" +
+            shape.length +
+            ", 12px)";
+
 
         for (
-          var c = 0;
-          c < shape[r].length;
-          c++
+          var r = 0;
+          r < shape.length;
+          r++
         ) {
 
-          var cell =
-            document.createElement(
-              "span"
+          for (
+            var c = 0;
+            c < shape[r].length;
+            c++
+          ) {
+
+            var cell =
+              document.createElement(
+                "span"
+              );
+
+
+            cell.className =
+              "mino-cell";
+
+
+            cell.style.background =
+              shape[r][c]
+                ? COLORS[type]
+                : "transparent";
+
+
+            preview.appendChild(
+              cell
             );
 
-          cell.className =
-            "mino-cell";
+          }
 
-
-          cell.style.background =
-            shape[r][c]
-              ? COLORS[type]
-              : "transparent";
-
-
-          preview.appendChild(cell);
         }
-      }
 
 
-      // ---------------------------------------------------
-      // ラベル
-      // ---------------------------------------------------
+        var label =
+          document.createElement(
+            "span"
+          );
 
-      var label =
-        document.createElement(
-          "span"
+
+        label.className =
+          "choice-label";
+
+
+        label.textContent =
+          type;
+
+
+        btn.appendChild(
+          preview
         );
 
-      label.className =
-        "choice-label";
 
-      label.textContent = type;
-
-
-      btn.appendChild(preview);
-      btn.appendChild(label);
+        btn.appendChild(
+          label
+        );
 
 
-      // ---------------------------------------------------
-      // 選択
-      // ---------------------------------------------------
+        btn.addEventListener(
+          "click",
+          function () {
 
-      btn.addEventListener(
-        "click",
-        function () {
+            var cb =
+              chooseCallback;
 
-          var cb =
-            chooseCallback;
 
-          chooseCallback = null;
+            chooseCallback =
+              null;
 
-          closeChooseModal();
 
-          if (cb) {
-            cb(type);
+            closeChooseModal();
+
+
+            if (cb) {
+
+              cb(type);
+
+            }
+
           }
-        }
-      );
+        );
 
 
-      grid.appendChild(btn);
-    });
+        grid.appendChild(
+          btn
+        );
+
+      }
+    );
 
 
-    overlay.classList.add("show");
+    overlay.classList.add(
+      "show"
+    );
+
 
     overlay.setAttribute(
       "aria-hidden",
@@ -1041,7 +1825,11 @@
         "chooseOverlay"
       );
 
-    overlay.classList.remove("show");
+
+    overlay.classList.remove(
+      "show"
+    );
+
 
     overlay.setAttribute(
       "aria-hidden",
@@ -1060,8 +1848,13 @@
 
       ctx =
         document
-          .getElementById("board")
-          .getContext("2d");
+          .getElementById(
+            "board"
+          )
+          .getContext(
+            "2d"
+          );
+
     }
 
 
@@ -1087,12 +1880,9 @@
         .trim();
 
 
-    // -----------------------------------------------------
-    // 背景
-    // -----------------------------------------------------
-
     ctx.fillStyle =
       emptyColor;
+
 
     ctx.fillRect(
       0,
@@ -1102,16 +1892,15 @@
     );
 
 
-    // -----------------------------------------------------
-    // グリッド
-    // -----------------------------------------------------
-
     ctx.strokeStyle =
       gridColor;
 
-    ctx.lineWidth = 1;
+
+    ctx.lineWidth =
+      1;
 
 
+    // 縦線
     for (
       var gc = 0;
       gc <= COLS;
@@ -1131,9 +1920,11 @@
       );
 
       ctx.stroke();
+
     }
 
 
+    // 横線
     for (
       var gr = 0;
       gr <= ROWS;
@@ -1153,36 +1944,48 @@
       );
 
       ctx.stroke();
+
     }
 
 
-    // -----------------------------------------------------
     // 固定ブロック
-    // -----------------------------------------------------
+    for (
+      var r = 0;
+      r < ROWS;
+      r++
+    ) {
 
-    for (var r = 0; r < ROWS; r++) {
+      for (
+        var c = 0;
+        c < COLS;
+        c++
+      ) {
 
-      for (var c = 0; c < COLS; c++) {
-
-        if (state.board[r][c]) {
+        if (
+          state.board[r][c]
+        ) {
 
           drawBlock(
             c,
             r,
             state.board[r][c]
           );
+
         }
+
       }
+
     }
 
 
-    // -----------------------------------------------------
     // 操作中ミノ
-    // -----------------------------------------------------
+    if (
+      state.active
+    ) {
 
-    if (state.active) {
+      var p =
+        state.active;
 
-      var p = state.active;
 
       for (
         var mr = 0;
@@ -1196,34 +1999,36 @@
           mc++
         ) {
 
-          if (p.matrix[mr][mc]) {
+          if (
+            p.matrix[mr][mc]
+          ) {
 
             drawBlock(
               p.col + mc,
               p.row + mr,
               p.color
             );
+
           }
+
         }
+
       }
+
     }
 
 
-    // -----------------------------------------------------
     // ストック
-    // -----------------------------------------------------
+    document
+      .getElementById(
+        "stockCountEl"
+      )
+      .innerHTML =
+        state.stockCount +
+        "<span class='unit'>個</span>";
 
-    document.getElementById(
-      "stockCountEl"
-    ).innerHTML =
-      state.stockCount +
-      "<span class='unit'>個</span>";
 
-
-    // -----------------------------------------------------
-    // ミノを出すボタン
-    // -----------------------------------------------------
-
+    // ミノ出現ボタン
     var spawnBtn =
       document.getElementById(
         "spawnBtn"
@@ -1237,43 +2042,57 @@
       state.won;
 
 
-    // -----------------------------------------------------
     // 操作ボタン
-    // -----------------------------------------------------
-
     var moveDisabled =
       !state.active ||
       state.over ||
       state.won;
 
 
-    document.getElementById(
-      "btnLeft"
-    ).disabled = moveDisabled;
-
-    document.getElementById(
-      "btnRight"
-    ).disabled = moveDisabled;
-
-    document.getElementById(
-      "btnRotate"
-    ).disabled = moveDisabled;
-
-    document.getElementById(
-      "btnDrop"
-    ).disabled = moveDisabled;
+    document
+      .getElementById(
+        "btnLeft"
+      )
+      .disabled =
+        moveDisabled;
 
 
-    // -----------------------------------------------------
-    // 除外候補
-    // -----------------------------------------------------
+    document
+      .getElementById(
+        "btnRight"
+      )
+      .disabled =
+        moveDisabled;
+
+
+    document
+      .getElementById(
+        "btnRotate"
+      )
+      .disabled =
+        moveDisabled;
+
+
+    document
+      .getElementById(
+        "btnDrop"
+      )
+      .disabled =
+        moveDisabled;
+
+
+    // -------------------------------------------------------
+    // 候補除外
+    // -------------------------------------------------------
 
     var chipWrap =
       document.getElementById(
         "excludeChips"
       );
 
-    chipWrap.innerHTML = "";
+
+    chipWrap.innerHTML =
+      "";
 
 
     var remaining =
@@ -1281,142 +2100,254 @@
       state.excluded.length;
 
 
-    OUTCOMES.forEach(function (o) {
+    OUTCOMES.forEach(
+      function (o) {
 
-      var chip =
-        document.createElement(
-          "button"
-        );
-
-
-      var isExcluded =
-        state.excluded.indexOf(o) !== -1;
+        var chip =
+          document.createElement(
+            "button"
+          );
 
 
-      chip.className =
-        "chip" +
-        (
-          isExcluded
-            ? " chip-excluded"
-            : ""
-        );
+        var isExcluded =
+          state.excluded.indexOf(
+            o
+          ) !== -1;
 
 
-      chip.textContent =
-        isExcluded
-          ? OUTCOME_LABEL[o] + "（解除）"
-          : OUTCOME_LABEL[o];
-
-
-      chip.type = "button";
-
-
-      // 除外済みはストックなしでも解除可能
-      chip.disabled =
-        (
-          !isExcluded &&
+        chip.className =
+          "chip" +
           (
-            state.stockCount <= 0 ||
-            remaining <= 1
-          )
-        ) ||
-        state.over ||
-        state.won ||
-        !!state.active;
+            isExcluded
+              ? " chip-excluded"
+              : ""
+          );
 
 
-      if (
-        !isExcluded &&
-        o in COLORS
-      ) {
+        chip.textContent =
+          isExcluded
+            ? OUTCOME_LABEL[o] +
+              "（解除）"
+            : OUTCOME_LABEL[o];
 
-        chip.style.borderColor =
-          COLORS[o];
+
+        chip.type =
+          "button";
+
+
+        // 除外済みは解除可能
+        chip.disabled =
+          (
+            !isExcluded &&
+            (
+              state.stockCount <= 0 ||
+              remaining <= 1
+            )
+          ) ||
+          state.over ||
+          state.won ||
+          !!state.active;
+
+
+        if (
+          !isExcluded &&
+          o in COLORS
+        ) {
+
+          chip.style.borderColor =
+            COLORS[o];
+
+        }
+
+
+        chip.onclick =
+          function () {
+
+            toggleExclude(
+              o
+            );
+
+          };
+
+
+        chipWrap.appendChild(
+          chip
+        );
+
       }
+    );
 
 
-      chip.onclick =
-        function () {
-
-          toggleExclude(o);
-        };
-
-
-      chipWrap.appendChild(chip);
-    });
+    // 店
+    document
+      .getElementById(
+        "storeNameEl"
+      )
+      .textContent =
+        state.storeName;
 
 
-    // -----------------------------------------------------
-    // 間食ログ
-    // -----------------------------------------------------
+    // 重複表示
+    document
+      .getElementById(
+        "duplicateNote"
+      )
+      .textContent =
+        state.duplicateMode ===
+        "deny"
 
+          ? "重複：NG（同じ店・同じ名前は登録不可）"
+
+          : "重複：許可";
+
+
+    // 設定
+    document
+      .getElementById(
+        "targetLinesInput"
+      )
+      .value =
+        state.targetLines;
+
+
+    document
+      .getElementById(
+        "dropSpeedInput"
+      )
+      .value =
+        String(
+          state.dropInterval
+        );
+
+
+    document
+      .getElementById(
+        "dropSpeedLabel"
+      )
+      .textContent =
+        getDropSpeedLabel(
+          state.dropInterval
+        );
+
+
+    document
+      .getElementById(
+        "duplicateModeInput"
+      )
+      .value =
+        state.duplicateMode;
+
+
+    // 食事ログ
     var logList =
       document.getElementById(
         "logList"
       );
 
-    logList.innerHTML = "";
+
+    logList.innerHTML =
+      "";
 
 
     state.log
       .slice(0, 8)
-      .forEach(function (entry) {
+      .forEach(
+        function (entry) {
 
-        var li =
-          document.createElement(
-            "li"
+          var li =
+            document.createElement(
+              "li"
+            );
+
+
+          var nameSpan =
+            document.createElement(
+              "span"
+            );
+
+
+          nameSpan.className =
+            "name";
+
+
+          nameSpan.textContent =
+            "🍢 " +
+            entry.name;
+
+
+          var metaSpan =
+            document.createElement(
+              "span"
+            );
+
+
+          metaSpan.className =
+            "meta";
+
+
+          metaSpan.textContent =
+            (
+              entry.store ||
+              "最初の店"
+            ) +
+            " / " +
+            entry.t;
+
+
+          li.appendChild(
+            nameSpan
           );
 
 
-        li.innerHTML =
-          "<span class='name'>🍢 " +
-          escapeHtml(entry.name) +
-          "</span><span>" +
-          escapeHtml(entry.t) +
-          "</span>";
+          li.appendChild(
+            metaSpan
+          );
 
 
-        logList.appendChild(li);
-      });
+          logList.appendChild(
+            li
+          );
 
-
-    // -----------------------------------------------------
-    // 戦績
-    // -----------------------------------------------------
-
-    document.getElementById(
-      "statLines"
-    ).textContent =
-      state.linesCleared +
-      " / " +
-      state.targetLines;
-
-
-    document.getElementById(
-      "statEat"
-    ).textContent =
-      state.eatCount;
-
-
-    document.getElementById(
-      "statTime"
-    ).textContent =
-      formatElapsed(
-        getElapsedMs()
+        }
       );
 
 
-    document.getElementById(
-      "targetLinesInput"
-    ).value =
-      state.targetLines;
+    // 戦績
+    document
+      .getElementById(
+        "statLines"
+      )
+      .textContent =
+        state.linesCleared +
+        " / " +
+        state.targetLines;
 
 
-    document.getElementById(
-      "giveUpBtn"
-    ).disabled =
-      state.over ||
-      state.won;
+    document
+      .getElementById(
+        "statEat"
+      )
+      .textContent =
+        state.eatCount;
+
+
+    document
+      .getElementById(
+        "statTime"
+      )
+      .textContent =
+        formatElapsed(
+          getElapsedMs()
+        );
+
+
+    document
+      .getElementById(
+        "giveUpBtn"
+      )
+      .disabled =
+        state.over ||
+        state.won;
   }
 
 
@@ -1426,11 +2357,16 @@
     color
   ) {
 
-    var x = col * BLOCK;
-    var y = row * BLOCK;
+    var x =
+      col * BLOCK;
+
+    var y =
+      row * BLOCK;
 
 
-    ctx.fillStyle = color;
+    ctx.fillStyle =
+      color;
+
 
     ctx.fillRect(
       x + 1,
@@ -1443,38 +2379,28 @@
     ctx.strokeStyle =
       "rgba(0,0,0,0.25)";
 
+
     ctx.strokeRect(
       x + 1,
       y + 1,
       BLOCK - 2,
       BLOCK - 2
     );
+
   }
 
 
-  function escapeHtml(s) {
+  function setStatus(
+    msg
+  ) {
 
-    return String(s).replace(
-      /[&<>"']/g,
-      function (ch) {
+    document
+      .getElementById(
+        "statusLine"
+      )
+      .textContent =
+        msg;
 
-        return {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;"
-        }[ch];
-      }
-    );
-  }
-
-
-  function setStatus(msg) {
-
-    document.getElementById(
-      "statusLine"
-    ).textContent = msg;
   }
 
 
@@ -1493,6 +2419,7 @@
         0,
         state.elapsedMs
       );
+
     }
 
 
@@ -1507,31 +2434,32 @@
   function freezeElapsed() {
 
     if (
-      state.over ||
-      state.won
+      !state.endedAt
     ) {
 
-      if (!state.endedAt) {
+      state.endedAt =
+        Date.now();
 
-        state.endedAt =
-          Date.now();
-      }
-
-
-      state.elapsedMs =
-        Math.max(
-          0,
-          state.endedAt -
-          state.startedAt
-        );
     }
+
+
+    state.elapsedMs =
+      Math.max(
+        0,
+        state.endedAt -
+        state.startedAt
+      );
   }
 
 
-  function formatElapsed(ms) {
+  function formatElapsed(
+    ms
+  ) {
 
     var totalSec =
-      Math.floor(ms / 1000);
+      Math.floor(
+        ms / 1000
+      );
 
 
     var sec =
@@ -1550,7 +2478,9 @@
       );
 
 
-    if (hour > 0) {
+    if (
+      hour > 0
+    ) {
 
       return (
         pad2(hour) +
@@ -1559,6 +2489,7 @@
         ":" +
         pad2(sec)
       );
+
     }
 
 
@@ -1572,10 +2503,91 @@
 
   function pad2(n) {
 
-    return String(n).padStart(
-      2,
-      "0"
+    return String(n)
+      .padStart(
+        2,
+        "0"
+      );
+  }
+
+
+  // =========================================================
+  // 落下速度
+  // =========================================================
+
+  function clampDropInterval(
+    v
+  ) {
+
+    v = parseInt(
+      v,
+      10
     );
+
+
+    if (isNaN(v))
+      v = 700;
+
+
+    if (v < 150)
+      v = 150;
+
+
+    if (v > 1200)
+      v = 1200;
+
+
+    return v;
+  }
+
+
+  function getDropSpeedLabel(
+    interval
+  ) {
+
+    interval =
+      clampDropInterval(
+        interval
+      );
+
+
+    if (
+      interval >= 950
+    ) {
+
+      return "とても遅い";
+
+    }
+
+
+    if (
+      interval >= 775
+    ) {
+
+      return "遅い";
+
+    }
+
+
+    if (
+      interval >= 600
+    ) {
+
+      return "標準";
+
+    }
+
+
+    if (
+      interval >= 425
+    ) {
+
+      return "速い";
+
+    }
+
+
+    return "とても速い";
   }
 
 
@@ -1594,51 +2606,61 @@
       );
 
 
-    document.getElementById(
-      "endTitle"
-    ).textContent =
-      won
-        ? "クリア成功！"
-        : "ゲームオーバー";
+    document
+      .getElementById(
+        "endTitle"
+      )
+      .textContent =
+        won
+          ? "クリア成功！"
+          : "ゲームオーバー";
 
 
-    document.getElementById(
-      "endMessage"
-    ).textContent =
-      won
+    document
+      .getElementById(
+        "endMessage"
+      )
+      .textContent =
+        won
 
-        ? (
-          "目標の" +
-          state.targetLines +
-          "ライン消去を達成しました。お会計、お願いします。"
-        )
+          ? (
+              "目標の" +
+              state.targetLines +
+              "ライン消去を達成しました。お会計、お願いします。"
+            )
 
-        : (
-          msg ||
-          "戦線離脱です。"
+          : (
+              msg ||
+              "戦線離脱です。"
+            );
+
+
+    document
+      .getElementById(
+        "endLines"
+      )
+      .textContent =
+        state.linesCleared +
+        " / " +
+        state.targetLines;
+
+
+    document
+      .getElementById(
+        "endEat"
+      )
+      .textContent =
+        state.eatCount;
+
+
+    document
+      .getElementById(
+        "endTime"
+      )
+      .textContent =
+        formatElapsed(
+          getElapsedMs()
         );
-
-
-    document.getElementById(
-      "endLines"
-    ).textContent =
-      state.linesCleared +
-      " / " +
-      state.targetLines;
-
-
-    document.getElementById(
-      "endEat"
-    ).textContent =
-      state.eatCount;
-
-
-    document.getElementById(
-      "endTime"
-    ).textContent =
-      formatElapsed(
-        getElapsedMs()
-      );
 
 
     overlay.classList.add(
@@ -1665,7 +2687,8 @@
       );
 
 
-    if (!frame) return;
+    if (!frame)
+      return;
 
 
     window.requestAnimationFrame(
@@ -1674,37 +2697,52 @@
         try {
 
           frame.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "nearest"
+
+            behavior:
+              "smooth",
+
+            block:
+              "center",
+
+            inline:
+              "nearest"
+
           });
 
         } catch (e) {
 
           frame.scrollIntoView();
+
         }
+
       }
     );
   }
 
 
   // =========================================================
-  // 落下処理
+  // 落下ループ
   // =========================================================
 
-  function loop(ts) {
+  function loop(
+    ts
+  ) {
 
     if (!lastTime) {
 
-      lastTime = ts;
+      lastTime =
+        ts;
+
     }
 
 
     var dt =
-      ts - lastTime;
+      ts -
+      lastTime;
 
 
-    lastTime = ts;
+    lastTime =
+      ts;
 
 
     if (
@@ -1718,18 +2756,23 @@
 
       var interval =
         Math.max(
-          300,
-          DROP_INTERVAL_BASE -
-          state.linesCleared * 12
+          150,
+          state.dropInterval -
+          state.linesCleared *
+          12
         );
 
 
-      if (acc > interval) {
+      if (
+        acc > interval
+      ) {
 
         acc = 0;
 
         softDrop();
+
       }
+
     }
 
 
@@ -1756,6 +2799,7 @@
         formatElapsed(
           getElapsedMs()
         );
+
     }
   }
 
@@ -1765,27 +2809,37 @@
   // =========================================================
 
   document
-    .getElementById("btnLeft")
+    .getElementById(
+      "btnLeft"
+    )
     .addEventListener(
       "click",
       function () {
+
         tryMove(-1);
+
       }
     );
 
 
   document
-    .getElementById("btnRight")
+    .getElementById(
+      "btnRight"
+    )
     .addEventListener(
       "click",
       function () {
+
         tryMove(1);
+
       }
     );
 
 
   document
-    .getElementById("btnRotate")
+    .getElementById(
+      "btnRotate"
+    )
     .addEventListener(
       "click",
       tryRotate
@@ -1793,7 +2847,9 @@
 
 
   document
-    .getElementById("btnDrop")
+    .getElementById(
+      "btnDrop"
+    )
     .addEventListener(
       "click",
       hardDrop
@@ -1801,7 +2857,9 @@
 
 
   document
-    .getElementById("spawnBtn")
+    .getElementById(
+      "spawnBtn"
+    )
     .addEventListener(
       "click",
       requestSpawn
@@ -1809,7 +2867,9 @@
 
 
   document
-    .getElementById("btnEat")
+    .getElementById(
+      "btnEat"
+    )
     .addEventListener(
       "click",
       eatItem
@@ -1817,53 +2877,44 @@
 
 
   document
-    .getElementById("giveUpBtn")
+    .getElementById(
+      "giveUpBtn"
+    )
     .addEventListener(
       "click",
       giveUp
     );
 
 
-  // =========================================================
-  // 自由選択キャンセル
-  // =========================================================
-
   document
-    .getElementById("chooseCancel")
+    .getElementById(
+      "changeStoreBtn"
+    )
     .addEventListener(
       "click",
-      function () {
-
-        // ミノを出すを押した時点で
-        // ストック消費はすでに確定。
-        chooseCallback = null;
-
-        closeChooseModal();
-
-        setStatus(
-          "自由選択をキャンセルしました。今回のストック消費は確定しています。"
-        );
-
-        save();
-        render();
-      }
+      changeStore
     );
 
 
   // =========================================================
-  // キーボード操作
+  // キーボード
   // =========================================================
 
   document.addEventListener(
     "keydown",
     function (e) {
 
-      // ESCで自由選択をキャンセル
+      // ESCで自由選択を閉じる
       if (
         e.key === "Escape" &&
         document
-          .getElementById("chooseOverlay")
-          .classList.contains("show")
+          .getElementById(
+            "chooseOverlay"
+          )
+          .classList
+          .contains(
+            "show"
+          )
       ) {
 
         document
@@ -1880,11 +2931,15 @@
         state.over ||
         state.won
       ) {
+
         return;
+
       }
 
 
-      if (e.key === "ArrowLeft") {
+      if (
+        e.key === "ArrowLeft"
+      ) {
 
         tryMove(-1);
 
@@ -1913,13 +2968,15 @@
         e.preventDefault();
 
         hardDrop();
+
       }
+
     }
   );
 
 
   // =========================================================
-  // 目標ライン数変更
+  // 目標ライン数
   // =========================================================
 
   document
@@ -1937,21 +2994,19 @@
 
 
         var changed =
-          v !== state.targetLines;
+          v !==
+          state.targetLines;
 
 
-        state.targetLines = v;
+        state.targetLines =
+          v;
 
 
-        // 開始直後なら
-        // 目標ライン数に合わせて
-        // 詰み盤面を再生成
+        // 開始直後なら盤面も再生成
         if (
           changed &&
-          state.linesCleared <
-            state.targetLines &&
-          !state.active &&
           state.linesCleared === 0 &&
+          !state.active &&
           state.stockCount === 0 &&
           state.eatCount === 0
         ) {
@@ -1960,6 +3015,7 @@
             makeGarbageBoard(
               state.targetLines
             );
+
         }
 
 
@@ -1968,16 +3024,176 @@
         save();
 
         render();
+
       }
     );
 
 
   // =========================================================
-  // 最初からやり直す
+  // 落下速度
   // =========================================================
 
   document
-    .getElementById("resetBtn")
+    .getElementById(
+      "dropSpeedInput"
+    )
+    .addEventListener(
+      "change",
+      function (e) {
+
+        state.dropInterval =
+          clampDropInterval(
+            e.target.value
+          );
+
+
+        setStatus(
+
+          "ミノの落下速度を「" +
+          getDropSpeedLabel(
+            state.dropInterval
+          ) +
+          "」に変更しました。"
+
+        );
+
+
+        save();
+
+        render();
+
+      }
+    );
+
+
+  // =========================================================
+  // 重複モード
+  // =========================================================
+
+  document
+    .getElementById(
+      "duplicateModeInput"
+    )
+    .addEventListener(
+      "change",
+      function (e) {
+
+        state.duplicateMode =
+          e.target.value ===
+          "deny"
+            ? "deny"
+            : "allow";
+
+
+        if (
+          state.duplicateMode
+          ===
+          "deny"
+        ) {
+
+          var currentStore =
+            state.storeName;
+
+
+          // 現在の店で既に登録されている
+          // 名前を重複判定へ反映
+          state.registeredItems =
+            state.log
+
+              .filter(
+                function (entry) {
+
+                  return (
+                    !entry.store ||
+                    entry.store ===
+                    currentStore
+                  );
+
+                }
+              )
+
+              .map(
+                function (entry) {
+
+                  return normalizeItemName(
+                    entry.name || ""
+                  );
+
+                }
+              )
+
+              .filter(Boolean);
+
+
+          state.registeredItems =
+            unique(
+              state.registeredItems
+            );
+
+
+          setStatus(
+            "重複NGに変更しました。現在の店ですでに登録済みの名前は登録できません。"
+          );
+
+        } else {
+
+          setStatus(
+            "重複OKに変更しました。"
+          );
+
+        }
+
+
+        save();
+
+        render();
+
+      }
+    );
+
+
+  // =========================================================
+  // 自由選択キャンセル
+  // =========================================================
+
+  document
+    .getElementById(
+      "chooseCancel"
+    )
+    .addEventListener(
+      "click",
+      function () {
+
+        // ミノを出した時点で
+        // ストック消費は確定している
+        chooseCallback =
+          null;
+
+
+        closeChooseModal();
+
+
+        setStatus(
+          "自由選択をキャンセルしました。今回のストック消費は確定しています。"
+        );
+
+
+        save();
+
+        render();
+
+      }
+    );
+
+
+  // =========================================================
+  // リセット
+  // =========================================================
+
+  document
+    .getElementById(
+      "resetBtn"
+    )
     .addEventListener(
       "click",
       function () {
@@ -1989,17 +3205,17 @@
         ) {
 
           startNew();
+
         }
+
       }
     );
 
 
-  // =========================================================
-  // 終了画面から再挑戦
-  // =========================================================
-
   document
-    .getElementById("endRestart")
+    .getElementById(
+      "endRestart"
+    )
     .addEventListener(
       "click",
       function () {
@@ -2008,7 +3224,8 @@
           .getElementById(
             "endOverlay"
           )
-          .classList.remove(
+          .classList
+          .remove(
             "show"
           );
 
@@ -2024,12 +3241,13 @@
 
 
         startNew();
+
       }
     );
 
 
   // =========================================================
-  // テーマ切替
+  // テーマ
   // =========================================================
 
   document
@@ -2050,27 +3268,30 @@
           );
 
 
-        root.setAttribute(
-          "data-theme",
+        var next =
           cur === "light"
             ? "dark"
-            : "light"
+            : "light";
+
+
+        root.setAttribute(
+          "data-theme",
+          next
         );
-
-
-        render();
 
 
         try {
 
           localStorage.setItem(
             "izakaya_tetris_theme",
-            root.getAttribute(
-              "data-theme"
-            ) || "dark"
+            next
           );
 
         } catch (e) {}
+
+
+        render();
+
       }
     );
 
@@ -2081,10 +3302,16 @@
 
   function startNew() {
 
-    state = freshState();
+    state =
+      freshState();
 
-    lastTime = 0;
-    acc = 0;
+
+    lastTime =
+      0;
+
+
+    acc =
+      0;
 
 
     setStatus(
@@ -2096,7 +3323,8 @@
       .getElementById(
         "endOverlay"
       )
-      .classList.remove(
+      .classList
+      .remove(
         "show"
       );
 
@@ -2105,7 +3333,8 @@
       .getElementById(
         "chooseOverlay"
       )
-      .classList.remove(
+      .classList
+      .remove(
         "show"
       );
 
@@ -2133,6 +3362,7 @@
     save();
 
     render();
+
   }
 
 
@@ -2161,9 +3391,11 @@
             "data-theme",
             savedTheme
           );
+
       }
 
     } catch (e) {}
+
   }
 
 
@@ -2176,12 +3408,51 @@
     restoreTheme();
 
 
-    var loaded = load();
+    var loaded =
+      load();
 
 
     state =
       loaded ||
       freshState();
+
+
+    if (
+      !Array.isArray(
+        state.registeredItems
+      )
+    ) {
+
+      state.registeredItems =
+        [];
+
+    }
+
+
+    if (
+      !state.storeName
+    ) {
+
+      state.storeName =
+        "最初の店";
+
+    }
+
+
+    state.dropInterval =
+      clampDropInterval(
+        state.dropInterval
+      );
+
+
+    if (
+      !state.duplicateMode
+    ) {
+
+      state.duplicateMode =
+        "allow";
+
+    }
 
 
     render();
