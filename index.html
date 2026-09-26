@@ -1,33 +1,678 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>居酒屋テトリス</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="manifest" href="manifest.json">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b1410">
+<title>居酒屋テトリス</title>
+<style>
+  :root {
+    --bg: #17110d;
+    --bg-panel: #221a14;
+    --bg-panel-2: #2b2019;
+    --paper: #f3e8d2;
+    --paper-dim: #cabd9f;
+    --lantern: #e8542e;
+    --lantern-dim: #a63f24;
+    --gold: #d3a24d;
+    --jade: #3f9179;
+    --line: rgba(243, 232, 210, 0.14);
+    --danger: #d9483a;
+    --board-empty: #241a13;
+    --board-grid: rgba(243,232,210,0.06);
+    --shadow: rgba(0,0,0,0.5);
+  }
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+  :root[data-theme="light"] {
+    --bg: #f3ece0;
+    --bg-panel: #ffffff;
+    --bg-panel-2: #f0e6d4;
+    --paper: #2a2018;
+    --paper-dim: #6b5c46;
+    --line: rgba(42,32,24,0.14);
+    --board-empty: #e7dcc7;
+    --board-grid: rgba(42,32,24,0.08);
+    --shadow: rgba(0,0,0,0.18);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    background: var(--bg);
+    color: var(--paper);
+    font-family: "Hiragino Sans", "Yu Gothic", "Segoe UI", system-ui, -apple-system, sans-serif;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    min-height: 100%;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 15% -5%, rgba(232,84,46,0.16), transparent 60%),
+      radial-gradient(ellipse 50% 30% at 100% 0%, rgba(211,162,77,0.10), transparent 60%);
+    background-attachment: fixed;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 16px 40px; }
+  header.top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+    border-bottom: 1px solid var(--line); padding-bottom: 14px;
+  }
+  .title-block h1 {
+    font-size: 26px; font-weight: 800; letter-spacing: 0.02em; margin: 0;
+    color: var(--lantern); text-shadow: 0 0 18px rgba(232,84,46,0.35);
+  }
+  .title-block p { margin: 4px 0 0; font-size: 13px; color: var(--paper-dim); }
+  .theme-toggle {
+    background: var(--bg-panel); border: 1px solid var(--line); color: var(--paper);
+    border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 320px) 1fr; gap: 22px; }
+  @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+
+  .board-col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .board-frame {
+    background: var(--bg-panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px; box-shadow: 0 12px 30px var(--shadow); width: 100%; max-width: 300px;
+  }
+  canvas#board { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--board-empty); }
+
+  .controls {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    width: 100%; max-width: 300px;
+  }
+  .ctrl-btn {
+    background: var(--bg-panel-2); border: 1px solid var(--line); color: var(--paper);
+    border-radius: 10px; padding: 12px 0; font-size: 18px; cursor: pointer;
+    user-select: none; touch-action: manipulation;
+  }
+  .ctrl-btn:active { background: var(--lantern-dim); }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .status-line { font-size: 13px; color: var(--paper-dim); text-align: center; min-height: 18px; }
+
+  .panel { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; color: var(--gold); font-weight: 700; letter-spacing: 0.01em; }
+
+  .stock-display {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px;
+  }
+  .stock-count { font-size: 30px; font-weight: 800; color: var(--paper); line-height: 1; }
+  .stock-count .unit { font-size: 13px; color: var(--paper-dim); font-weight: 400; margin-left: 4px; }
+  .spawn-btn {
+    background: var(--lantern); color: #241109; border: none; border-radius: 10px;
+    padding: 13px 18px; font-size: 14.5px; font-weight: 700; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .spawn-btn:disabled { opacity: 0.35; cursor: not-allowed; background: var(--bg-panel-2); color: var(--paper-dim); }
+  .stock-hint { font-size: 12.5px; color: var(--paper-dim); }
+
+  .item-form { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .item-form input[type="text"] {
+    flex: 1 1 140px; min-width: 0; background: var(--board-empty); border: 1px solid var(--line);
+    color: var(--paper); border-radius: 8px; padding: 9px 10px; font-size: 14px;
+  }
+  .btn {
+    border: none; border-radius: 8px; padding: 10px 14px; font-size: 13.5px;
+    font-weight: 700; cursor: pointer; width: 100%; background: var(--jade); color: #0d1f19;
+  }
+
+  .log-list {
+    list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .log-list li {
+    font-size: 12.5px; color: var(--paper-dim); display: flex; justify-content: space-between;
+    gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 5px;
+  }
+  .log-list li span.name { color: var(--paper); }
+
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+  .switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: var(--board-empty); border: 1px solid var(--line);
+    border-radius: 999px; cursor: pointer; transition: background 0.2s;
+  }
+  .slider::before {
+    content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px;
+    background: var(--paper-dim); border-radius: 50%; transition: transform 0.2s, background 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--lantern-dim); }
+  .switch input:checked + .slider::before { transform: translateX(18px); background: var(--paper); }
+
+  .reset-btn {
+    width: 100%; background: transparent; border: 1px solid var(--line); color: var(--paper-dim);
+    border-radius: 8px; padding: 9px; font-size: 13px; cursor: pointer;
+  }
+  .reset-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(10, 7, 5, 0.72); display: none;
+    align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--bg-panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px; max-width: 340px; width: 100%; text-align: center; box-shadow: 0 20px 50px var(--shadow);
+  }
+  .modal h3 { margin: 0 0 8px; font-size: 20px; }
+  .modal p { font-size: 13.5px; color: var(--paper-dim); margin: 0 0 16px; line-height: 1.6; }
+  .modal .stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .modal-btn {
+    margin-top: 14px; width: 100%; background: var(--lantern); color: #241109; border: none;
+    border-radius: 8px; padding: 11px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .choice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 4px; }
+  .choice-piece {
+    background: var(--board-empty); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 0; font-weight: 800; font-size: 16px; cursor: pointer;
+  }
+  .choice-piece:hover { border-color: var(--gold); }
+</style>
 </head>
 <body>
-  <div id="app">
-    <h1>🍻 居酒屋テトリス 🍻</h1>
-    
-    <div class="status-panel">
-      <div class="stock-display">落とせる数: <span id="stockCount">0</span> 個</div>
-      <button id="eatBtn" class="btn-eat">🍺 1品完食！ (+1)</button>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <h1>居酒屋テトリス</h1>
+      <p>間食するとストックが1つ貯まる。「ミノを出す」を押した瞬間、種類がランダムに決まって落ちてくる。</p>
+    </div>
+    <button class="theme-toggle" id="themeToggle">ダーク／ライト切替</button>
+  </header>
+
+  <div class="layout">
+    <div class="board-col">
+      <div class="board-frame">
+        <canvas id="board" width="300" height="600"></canvas>
+      </div>
+      <div class="controls">
+        <button class="ctrl-btn" id="btnLeft">◀</button>
+        <button class="ctrl-btn" id="btnRotate">⟳</button>
+        <button class="ctrl-btn" id="btnRight">▶</button>
+        <button class="ctrl-btn" id="btnDrop">⤓</button>
+      </div>
+      <div class="status-line" id="statusLine">間食してストックを貯めよう</div>
     </div>
 
-    <div class="game-container">
-      <canvas id="tetris" width="240" height="400"></canvas>
-    </div>
+    <div class="panel">
+      <div class="card">
+        <h2>ストック</h2>
+        <div class="stock-display">
+          <div class="stock-count" id="stockCountEl">0<span class="unit">個</span></div>
+          <button class="spawn-btn" id="spawnBtn">ミノを出す</button>
+        </div>
+        <div class="stock-hint">押した瞬間にミノの種類が決まります。落下中はもう一つは出せません。</div>
+      </div>
 
-    <div class="controls">
-      <button id="leftBtn" class="btn-ctrl">←</button>
-      <button id="rotateBtn" class="btn-ctrl">🔄</button>
-      <button id="rightBtn" class="btn-ctrl">→</button>
-      <button id="dropBtn" class="btn-ctrl btn-drop">⬇ 落とす (-1)</button>
+      <div class="card">
+        <h2>間食を記録する</h2>
+        <div class="item-form">
+          <input type="text" id="itemName" placeholder="例：唐揚げ、レモンサワー" maxlength="24">
+        </div>
+        <button class="btn" id="btnEat">口にした（ストック＋1）</button>
+        <ul class="log-list" id="logList" style="margin-top:10px;"></ul>
+      </div>
+
+      <div class="card">
+        <h2>設定</h2>
+        <div class="setting-row">
+          <span>ミノは全種類から選べる</span>
+          <label class="switch">
+            <input type="checkbox" id="chooseModeToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p style="font-size:12px; color:var(--paper-dim); margin:8px 0 0;">
+          オフ（何もなし）＝「ミノを出す」を押すと完全ランダムで決定。オンにすると押すたびに7種類から選べる。
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>戦績</h2>
+        <div class="setting-row"><span>消したライン</span><span id="statLines">0</span></div>
+        <div class="setting-row"><span>間食した回数</span><span id="statEat">0</span></div>
+      </div>
+
+      <button class="reset-btn" id="resetBtn">最初からやり直す</button>
     </div>
   </div>
+</div>
 
-  <script src="game.js"></script>
+<div class="overlay" id="chooseOverlay">
+  <div class="modal">
+    <h3>ミノを選ぶ</h3>
+    <p>出すミノの種類を選んでください。</p>
+    <div class="choice-grid" id="choiceGrid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="endOverlay">
+  <div class="modal">
+    <h3 id="endTitle">ゲームオーバー</h3>
+    <p id="endMessage"></p>
+    <div class="stat-row"><span>消したライン</span><span id="endLines">0</span></div>
+    <div class="stat-row"><span>間食した回数</span><span id="endEat">0</span></div>
+    <button class="modal-btn" id="endRestart">もう一度挑戦する</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var COLS = 10, ROWS = 20, BLOCK = 30;
+  var STORAGE_KEY = "izakaya_tetris_save_v2";
+
+  var SHAPES = {
+    I: [[1,1,1,1]],
+    O: [[1,1],[1,1]],
+    T: [[0,1,0],[1,1,1]],
+    S: [[0,1,1],[1,1,0]],
+    Z: [[1,1,0],[0,1,1]],
+    J: [[1,0,0],[1,1,1]],
+    L: [[0,0,1],[1,1,1]]
+  };
+  var COLORS = {
+    I: "#3fb7c9", O: "#e8c14a", T: "#b478d6",
+    S: "#5fbf7a", Z: "#e0574c", J: "#5b83e0", L: "#e8942e"
+  };
+  var TYPES = Object.keys(SHAPES);
+  var GARBAGE_COLOR = "#7d7466";
+  var DROP_INTERVAL_BASE = 700;
+
+  var state = null;
+
+  function freshState() {
+    return {
+      board: makeGarbageBoard(),
+      active: null,
+      stockCount: 0,
+      chooseMode: false,
+      linesCleared: 0,
+      eatCount: 0,
+      log: [],
+      over: false,
+      won: false
+    };
+  }
+
+  function makeGarbageBoard() {
+    var board = [];
+    for (var r = 0; r < ROWS; r++) board.push(new Array(COLS).fill(null));
+    var garbageRows = 9;
+    for (var gr = ROWS - garbageRows; gr < ROWS; gr++) {
+      var gaps = 2 + Math.floor(Math.random() * 2);
+      var gapCols = [];
+      while (gapCols.length < gaps) {
+        var c = Math.floor(Math.random() * COLS);
+        if (gapCols.indexOf(c) === -1) gapCols.push(c);
+      }
+      for (var col = 0; col < COLS; col++) {
+        if (gapCols.indexOf(col) === -1) board[gr][col] = GARBAGE_COLOR;
+      }
+    }
+    return board;
+  }
+
+  function save() {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.board) return null;
+      return parsed;
+    } catch (e) { return null; }
+  }
+
+  function randomType() { return TYPES[Math.floor(Math.random() * TYPES.length)]; }
+  function cloneMatrix(m) { return m.map(function (row) { return row.slice(); }); }
+  function spawnPieceOfType(type) {
+    var matrix = cloneMatrix(SHAPES[type]);
+    var col = Math.floor((COLS - matrix[0].length) / 2);
+    return { type: type, matrix: matrix, row: 0, col: col, color: COLORS[type] };
+  }
+
+  function collides(matrix, row, col) {
+    for (var r = 0; r < matrix.length; r++) {
+      for (var c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        var br = row + r, bc = col + c;
+        if (bc < 0 || bc >= COLS || br >= ROWS) return true;
+        if (br >= 0 && state.board[br][bc]) return true;
+      }
+    }
+    return false;
+  }
+
+  function rotateMatrix(m) {
+    var rows = m.length, cols = m[0].length, res = [];
+    for (var c = 0; c < cols; c++) {
+      var newRow = [];
+      for (var r = rows - 1; r >= 0; r--) newRow.push(m[r][c]);
+      res.push(newRow);
+    }
+    return res;
+  }
+
+  function tryRotate() {
+    if (!state.active) return;
+    var rotated = rotateMatrix(state.active.matrix);
+    var kicks = [0, -1, 1, -2, 2];
+    for (var i = 0; i < kicks.length; i++) {
+      var newCol = state.active.col + kicks[i];
+      if (!collides(rotated, state.active.row, newCol)) {
+        state.active.matrix = rotated;
+        state.active.col = newCol;
+        render();
+        return;
+      }
+    }
+  }
+
+  function tryMove(dx) {
+    if (!state.active) return;
+    var newCol = state.active.col + dx;
+    if (!collides(state.active.matrix, state.active.row, newCol)) {
+      state.active.col = newCol;
+      render();
+    }
+  }
+
+  function softDrop() {
+    if (!state.active) return;
+    if (!collides(state.active.matrix, state.active.row + 1, state.active.col)) {
+      state.active.row += 1;
+      render();
+    } else {
+      lockPiece();
+    }
+  }
+
+  function hardDrop() {
+    if (!state.active) return;
+    while (!collides(state.active.matrix, state.active.row + 1, state.active.col)) {
+      state.active.row += 1;
+    }
+    lockPiece();
+  }
+
+  function lockPiece() {
+    var p = state.active;
+    for (var r = 0; r < p.matrix.length; r++) {
+      for (var c = 0; c < p.matrix[r].length; c++) {
+        if (!p.matrix[r][c]) continue;
+        var br = p.row + r, bc = p.col + c;
+        if (br < 0) { triggerGameOver("盤面から溢れました。もう戻れません。"); return; }
+        state.board[br][bc] = p.color;
+      }
+    }
+    state.active = null;
+    clearLines();
+    checkWin();
+    if (!state.over && !state.won) {
+      setStatus(state.stockCount > 0 ? "「ミノを出す」を押して続けよう" : "間食してストックを貯めよう");
+    }
+    save();
+    render();
+  }
+
+  function clearLines() {
+    var cleared = 0;
+    for (var r = ROWS - 1; r >= 0; r--) {
+      var full = true;
+      for (var c = 0; c < COLS; c++) { if (!state.board[r][c]) { full = false; break; } }
+      if (full) {
+        state.board.splice(r, 1);
+        state.board.unshift(new Array(COLS).fill(null));
+        cleared++;
+        r++;
+      }
+    }
+    if (cleared > 0) {
+      state.linesCleared += cleared;
+      setStatus(cleared + "ライン消去！");
+    }
+  }
+
+  function boardIsClear() {
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) if (state.board[r][c]) return false;
+    return true;
+  }
+
+  function checkWin() {
+    if (boardIsClear()) { state.won = true; showEnd(true); }
+  }
+
+  function triggerGameOver(msg) {
+    state.over = true;
+    state.active = null;
+    showEnd(false, msg);
+    save();
+  }
+
+  // ---------- stock / spawn ----------
+  function requestSpawn() {
+    if (state.over || state.won) return;
+    if (state.active) return;
+    if (state.stockCount <= 0) return;
+
+    if (state.chooseMode) {
+      openChooseModal(function (type) { doSpawn(type); });
+    } else {
+      doSpawn(randomType());
+    }
+  }
+
+  function doSpawn(type) {
+    state.stockCount -= 1;
+    var piece = spawnPieceOfType(type);
+    if (collides(piece.matrix, piece.row, piece.col)) {
+      triggerGameOver("盤面が完全に埋まりました。KO...");
+      return;
+    }
+    state.active = piece;
+    setStatus("");
+    save();
+    render();
+  }
+
+  function eatItem() {
+    if (state.over || state.won) return;
+    var name = document.getElementById("itemName").value.trim();
+    if (!name) name = "間食";
+    state.stockCount += 1;
+    state.eatCount += 1;
+    state.log.unshift({
+      name: name,
+      t: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+    });
+    if (state.log.length > 30) state.log.pop();
+    document.getElementById("itemName").value = "";
+    if (!state.active) setStatus("「ミノを出す」を押して盤面に置こう");
+    save();
+    render();
+  }
+
+  function openChooseModal(callback) {
+    var overlay = document.getElementById("chooseOverlay");
+    var grid = document.getElementById("choiceGrid");
+    grid.innerHTML = "";
+    TYPES.forEach(function (type) {
+      var btn = document.createElement("button");
+      btn.className = "choice-piece";
+      btn.style.color = COLORS[type];
+      btn.style.borderColor = COLORS[type];
+      btn.textContent = type;
+      btn.onclick = function () {
+        overlay.classList.remove("show");
+        callback(type);
+      };
+      grid.appendChild(btn);
+    });
+    overlay.classList.add("show");
+  }
+
+  // ---------- rendering ----------
+  var ctx = null;
+  function render() {
+    if (!ctx) ctx = document.getElementById("board").getContext("2d");
+    var styles = getComputedStyle(document.documentElement);
+    var emptyColor = styles.getPropertyValue("--board-empty").trim();
+    var gridColor = styles.getPropertyValue("--board-grid").trim();
+
+    ctx.fillStyle = emptyColor;
+    ctx.fillRect(0, 0, COLS * BLOCK, ROWS * BLOCK);
+
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    for (var gc = 0; gc <= COLS; gc++) {
+      ctx.beginPath(); ctx.moveTo(gc * BLOCK, 0); ctx.lineTo(gc * BLOCK, ROWS * BLOCK); ctx.stroke();
+    }
+    for (var gr = 0; gr <= ROWS; gr++) {
+      ctx.beginPath(); ctx.moveTo(0, gr * BLOCK); ctx.lineTo(COLS * BLOCK, gr * BLOCK); ctx.stroke();
+    }
+
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        if (state.board[r][c]) drawBlock(c, r, state.board[r][c]);
+      }
+    }
+
+    if (state.active) {
+      var p = state.active;
+      for (var mr = 0; mr < p.matrix.length; mr++) {
+        for (var mc = 0; mc < p.matrix[mr].length; mc++) {
+          if (p.matrix[mr][mc]) drawBlock(p.col + mc, p.row + mr, p.color);
+        }
+      }
+    }
+
+    document.getElementById("stockCountEl").innerHTML = state.stockCount + "<span class='unit'>個</span>";
+    var spawnBtn = document.getElementById("spawnBtn");
+    spawnBtn.disabled = state.stockCount <= 0 || !!state.active || state.over || state.won;
+
+    var moveDisabled = !state.active || state.over || state.won;
+    document.getElementById("btnLeft").disabled = moveDisabled;
+    document.getElementById("btnRight").disabled = moveDisabled;
+    document.getElementById("btnRotate").disabled = moveDisabled;
+    document.getElementById("btnDrop").disabled = moveDisabled;
+
+    var logList = document.getElementById("logList");
+    logList.innerHTML = "";
+    state.log.slice(0, 8).forEach(function (entry) {
+      var li = document.createElement("li");
+      li.innerHTML = "<span class='name'>🍢 " + escapeHtml(entry.name) + "</span><span>" + entry.t + "</span>";
+      logList.appendChild(li);
+    });
+
+    document.getElementById("statLines").textContent = state.linesCleared;
+    document.getElementById("statEat").textContent = state.eatCount;
+
+    document.getElementById("chooseModeToggle").checked = state.chooseMode;
+  }
+
+  function drawBlock(col, row, color) {
+    var x = col * BLOCK, y = row * BLOCK;
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 1, y + 1, BLOCK - 2, BLOCK - 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.strokeRect(x + 1, y + 1, BLOCK - 2, BLOCK - 2);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  function setStatus(msg) { document.getElementById("statusLine").textContent = msg; }
+
+  function showEnd(won, msg) {
+    var overlay = document.getElementById("endOverlay");
+    document.getElementById("endTitle").textContent = won ? "生還成功！" : "ゲームオーバー";
+    document.getElementById("endMessage").textContent = won
+      ? "積み上がった盤面を完全に消し切りました。お会計、お願いします。"
+      : (msg || "戦線離脱です。");
+    document.getElementById("endLines").textContent = state.linesCleared;
+    document.getElementById("endEat").textContent = state.eatCount;
+    overlay.classList.add("show");
+  }
+
+  // ---------- gravity loop ----------
+  var lastTime = 0, acc = 0;
+  function loop(ts) {
+    if (!lastTime) lastTime = ts;
+    var dt = ts - lastTime;
+    lastTime = ts;
+    if (!state.over && !state.won && state.active) {
+      acc += dt;
+      var interval = Math.max(300, DROP_INTERVAL_BASE - state.linesCleared * 12);
+      if (acc > interval) { acc = 0; softDrop(); }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- input ----------
+  document.getElementById("btnLeft").addEventListener("click", function () { tryMove(-1); });
+  document.getElementById("btnRight").addEventListener("click", function () { tryMove(1); });
+  document.getElementById("btnRotate").addEventListener("click", tryRotate);
+  document.getElementById("btnDrop").addEventListener("click", hardDrop);
+  document.getElementById("spawnBtn").addEventListener("click", requestSpawn);
+  document.getElementById("btnEat").addEventListener("click", eatItem);
+
+  document.addEventListener("keydown", function (e) {
+    if (state.over || state.won) return;
+    if (e.key === "ArrowLeft") tryMove(-1);
+    else if (e.key === "ArrowRight") tryMove(1);
+    else if (e.key === "ArrowUp") tryRotate();
+    else if (e.key === "ArrowDown") softDrop();
+    else if (e.key === " ") { e.preventDefault(); hardDrop(); }
+  });
+
+  document.getElementById("chooseModeToggle").addEventListener("change", function (e) {
+    state.chooseMode = e.target.checked;
+    save();
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (window.confirm("進行状況をリセットして最初からやり直しますか？")) startNew();
+  });
+  document.getElementById("endRestart").addEventListener("click", function () {
+    document.getElementById("endOverlay").classList.remove("show");
+    startNew();
+  });
+
+  document.getElementById("themeToggle").addEventListener("click", function () {
+    var root = document.documentElement;
+    var cur = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", cur === "light" ? "dark" : "light");
+    render();
+  });
+
+  function startNew() {
+    state = freshState();
+    setStatus("間食してストックを貯めよう");
+    save();
+    render();
+  }
+
+  function boot() {
+    var loaded = load();
+    state = loaded || freshState();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  boot();
+})();
+</script>
 </body>
 </html>
