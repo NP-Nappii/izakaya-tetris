@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>居酒屋テトリス</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div id="app">
+    <h1>🍻 居酒屋テトリス 🍻</h1>
+    
+    <div class="status-panel">
+      <div class="stock-display">落とせる数: <span id="stockCount">0</span> 個</div>
+      <button id="eatBtn" class="btn-eat">🍺 1品完食！ (+1)</button>
+    </div>
+
+    <div class="game-container">
+      <canvas id="tetris" width="240" height="400"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="leftBtn" class="btn-ctrl">←</button>
+      <button id="rotateBtn" class="btn-ctrl">🔄</button>
+      <button id="rightBtn" class="btn-ctrl">→</button>
+      <button id="dropBtn" class="btn-ctrl btn-drop">⬇ 落とす (-1)</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
