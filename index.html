@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#24150f">
@@ -12,364 +12,467 @@
 <title>居酒屋テトリス</title>
 <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 <div class="wrap">
 
-  <header class="top">
-    <div class="title-block">
-      <div class="title-kana">IZAKAYA TETRIS</div>
-      <h1>居酒屋テトリス</h1>
-      <p>
-        1品完食でストック＋1。ミノは7種＋スカ＋自由選択の9択からランダム。
-        目標ライン数を消せばクリア。
-      </p>
+<header class="top">
+
+  <div class="title-block">
+
+    <div class="title-kana">
+      IZAKAYA TETRIS
     </div>
 
-    <button
-      class="theme-toggle"
-      id="themeToggle"
-      type="button">
-      ダーク／ライト切替
-    </button>
-  </header>
+    <h1>
+      居酒屋テトリス
+    </h1>
 
-  <div class="layout">
+    <p>
+      1品完食でストック＋1。ミノは7種＋スカ＋自由選択の9択からランダム。目標ライン数を消せばクリア。
+    </p>
 
-    <div class="board-col">
+  </div>
 
-      <div class="board-frame" id="boardFrame">
-        <canvas
-          id="board"
-          width="300"
-          height="600">
-        </canvas>
+  <button
+    class="theme-toggle"
+    id="themeToggle"
+    type="button">
+    ダーク／ライト切替
+  </button>
+
+</header>
+
+
+<div class="layout">
+
+  <!-- ==============================
+       盤面
+       ============================== -->
+
+  <div class="board-col">
+
+    <div
+      class="board-frame"
+      id="boardFrame">
+
+      <canvas
+        id="board"
+        width="300"
+        height="600">
+      </canvas>
+
+    </div>
+
+
+    <div class="controls">
+
+      <button
+        class="ctrl-btn"
+        id="btnLeft"
+        type="button"
+        aria-label="左へ">
+        ◀
+      </button>
+
+      <button
+        class="ctrl-btn"
+        id="btnRotate"
+        type="button"
+        aria-label="回転">
+        ⟳
+      </button>
+
+      <button
+        class="ctrl-btn"
+        id="btnRight"
+        type="button"
+        aria-label="右へ">
+        ▶
+      </button>
+
+      <button
+        class="ctrl-btn"
+        id="btnDrop"
+        type="button"
+        aria-label="ハードドロップ">
+        ⤓
+      </button>
+
+    </div>
+
+
+    <div
+      class="status-line"
+      id="statusLine">
+      間食してストックを貯めよう
+    </div>
+
+  </div>
+
+
+  <!-- ==============================
+       パネル
+       ============================== -->
+
+  <div class="panel">
+
+
+    <!-- ストック -->
+    <div class="card">
+
+      <h2>ストック</h2>
+
+      <div class="stock-display">
+
+        <div
+          class="stock-count"
+          id="stockCountEl">
+          0<span class="unit">個</span>
+        </div>
+
+        <button
+          class="spawn-btn"
+          id="spawnBtn"
+          type="button">
+          ミノを出す
+        </button>
+
       </div>
 
-      <div class="controls">
-        <button
-          class="ctrl-btn"
-          id="btnLeft"
-          type="button"
-          aria-label="左へ">
-          ◀
-        </button>
 
-        <button
-          class="ctrl-btn"
-          id="btnRotate"
-          type="button"
-          aria-label="回転">
-          ⟳
-        </button>
-
-        <button
-          class="ctrl-btn"
-          id="btnRight"
-          type="button"
-          aria-label="右へ">
-          ▶
-        </button>
-
-        <button
-          class="ctrl-btn"
-          id="btnDrop"
-          type="button"
-          aria-label="ハードドロップ">
-          ⤓
-        </button>
+      <div class="stock-hint">
+        「ミノを出す」を押した瞬間にストック－1が確定し、抽選結果が決まります。スカ以外は盤面まで自動スクロールします。
       </div>
+
 
       <div
-        class="status-line"
-        id="statusLine">
-        間食してストックを貯めよう
+        class="chip-grid"
+        id="excludeChips">
+      </div>
+
+
+      <div
+        class="stock-hint"
+        style="margin-top:8px;">
+        抽選前に候補をタップすると除外できます（ストック－1）。除外済み候補をもう一度タップすると除外を取り消し、ストックが1戻ります。
       </div>
 
     </div>
 
-    <div class="panel">
 
-      <!-- ストック -->
-      <div class="card">
+    <!-- ==============================
+         間食記録
+         ============================== -->
 
-        <h2>ストック</h2>
+    <div class="card">
 
-        <div class="stock-display">
+      <h2>間食を記録する</h2>
+
+
+      <div class="current-store-row">
+
+        <div>
+
+          <div class="store-caption">
+            現在の店
+          </div>
 
           <div
-            class="stock-count"
-            id="stockCountEl">
-            0<span class="unit">個</span>
+            class="store-name"
+            id="storeNameEl">
+            最初の店
           </div>
-
-          <button
-            class="spawn-btn"
-            id="spawnBtn"
-            type="button">
-            ミノを出す
-          </button>
-
-        </div>
-
-        <div class="stock-hint">
-          「ミノを出す」を押した瞬間に
-          ストック－1が確定し、抽選結果が決まります。
-          スカ以外は盤面まで自動スクロールします。
-        </div>
-
-        <div
-          class="chip-grid"
-          id="excludeChips">
-        </div>
-
-        <div
-          class="stock-hint"
-          style="margin-top:8px;">
-          抽選前に候補をタップすると除外できます
-          （ストック－1）。
-          除外済み候補をもう一度タップすると
-          除外を取り消し、ストックが1戻ります。
-        </div>
-
-      </div>
-
-
-      <!-- 間食 -->
-      <div class="card">
-
-        <h2>間食を記録する</h2>
-
-        <div class="current-store-row">
-
-          <div>
-
-            <div class="store-caption">
-              現在の店
-            </div>
-
-            <div
-              class="store-name"
-              id="storeNameEl">
-              最初の店
-            </div>
-
-          </div>
-
-          <button
-            class="store-btn"
-            id="changeStoreBtn"
-            type="button">
-            店を変える
-          </button>
-
-        </div>
-
-
-        <div class="item-form">
-
-          <input
-            type="text"
-            id="itemName"
-            placeholder="例：唐揚げ、レモンサワー"
-            maxlength="24"
-            autocomplete="off">
 
         </div>
 
 
         <button
-          class="btn"
-          id="btnEat"
+          class="store-btn"
+          id="changeStoreBtn"
           type="button">
-          口にした（ストック＋1）
+          店を変える
         </button>
 
+      </div>
 
-        <div
-          class="duplicate-note"
-          id="duplicateNote">
-          重複：許可
+
+      <!-- 食べ物 -->
+
+      <div class="item-form category-form">
+
+        <div class="category-label food-label">
+          🍢 食べ物
         </div>
 
+        <input
+          type="text"
+          id="foodName"
+          placeholder="例：唐揚げ、焼き鳥"
+          maxlength="24"
+          autocomplete="off">
 
-        <ul
-          class="log-list"
-          id="logList"
-          style="margin-top:10px;">
-        </ul>
+        <button
+          class="btn food-btn"
+          id="btnEatFood"
+          type="button">
+          食べた（ストック＋1）
+        </button>
 
       </div>
 
 
-      <!-- 設定 -->
-      <div class="card">
+      <!-- 飲み物 -->
 
-        <h2>設定</h2>
+      <div class="item-form category-form">
 
-
-        <div class="setting-row">
-
-          <span>
-            目標ライン数
-          </span>
-
-          <input
-            type="number"
-            class="number-input"
-            id="targetLinesInput"
-            min="1"
-            max="20"
-            value="3"
-            inputmode="numeric">
-
+        <div class="category-label drink-label">
+          🍺 飲み物
         </div>
 
+        <input
+          type="text"
+          id="drinkName"
+          placeholder="例：レモンサワー、ビール"
+          maxlength="24"
+          autocomplete="off">
 
-        <div
-          class="setting-row setting-row-stack">
-
-          <div>
-
-            <span>
-              ミノの落下速度
-            </span>
-
-            <small id="dropSpeedLabel">
-              標準
-            </small>
-
-          </div>
-
-
-          <select
-            class="select-input"
-            id="dropSpeedInput">
-
-            <option value="1000">
-              とても遅い
-            </option>
-
-            <option value="850">
-              遅い
-            </option>
-
-            <option
-              value="700"
-              selected>
-              標準
-            </option>
-
-            <option value="500">
-              速い
-            </option>
-
-            <option value="350">
-              とても速い
-            </option>
-
-          </select>
-
-        </div>
-
-
-        <div
-          class="setting-row setting-row-stack">
-
-          <div>
-
-            <span>
-              食べ物・飲み物の重複
-            </span>
-
-            <small>
-              同じ店で同じ名前をもう一度登録するか
-            </small>
-
-          </div>
-
-
-          <select
-            class="select-input"
-            id="duplicateModeInput">
-
-            <option
-              value="allow"
-              selected>
-              重複OK
-            </option>
-
-            <option value="deny">
-              重複NG
-            </option>
-
-          </select>
-
-        </div>
-
-
-        <p class="setting-note">
-          店を変えると、その店での
-          「重複NG」の判定だけリセットされます。
-          ゲーム盤面・ライン数・経過時間はそのままです。
-        </p>
+        <button
+          class="btn drink-btn"
+          id="btnEatDrink"
+          type="button">
+          飲んだ（ストック＋1）
+        </button>
 
       </div>
 
 
-      <!-- 戦績 -->
-      <div class="card">
-
-        <h2>戦績</h2>
-
-        <div class="setting-row">
-          <span>消したライン</span>
-          <span id="statLines">
-            0 / 3
-          </span>
-        </div>
-
-        <div class="setting-row">
-          <span>間食した回数</span>
-          <span id="statEat">
-            0
-          </span>
-        </div>
-
-        <div class="setting-row">
-          <span>経過時間</span>
-          <span id="statTime">
-            00:00
-          </span>
-        </div>
-
+      <div
+        class="duplicate-note"
+        id="duplicateNote">
+        食べ物：重複OK　／　飲み物：重複OK
       </div>
 
 
-      <!-- ギブアップ -->
-      <button
-        class="giveup-btn"
-        id="giveUpBtn"
-        type="button">
-        もう食べられない・飲めない（ギブアップ）
-      </button>
-
-
-      <!-- リセット -->
-      <button
-        class="reset-btn"
-        id="resetBtn"
-        type="button">
-        最初からやり直す
-      </button>
+      <ul
+        class="log-list"
+        id="logList">
+      </ul>
 
     </div>
+
+
+    <!-- ==============================
+         設定
+         ============================== -->
+
+    <div class="card">
+
+      <h2>設定</h2>
+
+
+      <div class="setting-row">
+
+        <span>
+          目標ライン数
+        </span>
+
+        <input
+          type="number"
+          class="number-input"
+          id="targetLinesInput"
+          min="1"
+          max="18"
+          value="3"
+          inputmode="numeric">
+
+      </div>
+
+
+      <div class="setting-row setting-row-stack">
+
+        <div>
+
+          <span>
+            ミノの落下速度
+          </span>
+
+          <small id="dropSpeedLabel">
+            標準
+          </small>
+
+        </div>
+
+
+        <select
+          class="select-input"
+          id="dropSpeedInput">
+
+          <option value="1000">
+            とても遅い
+          </option>
+
+          <option value="850">
+            遅い
+          </option>
+
+          <option
+            value="700"
+            selected>
+            標準
+          </option>
+
+          <option value="500">
+            速い
+          </option>
+
+          <option value="350">
+            とても速い
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="setting-row setting-row-stack">
+
+        <div>
+
+          <span>
+            食べ物の重複
+          </span>
+
+          <small>
+            現在の店で同じ名前を登録するか
+          </small>
+
+        </div>
+
+
+        <select
+          class="select-input"
+          id="foodDuplicateModeInput">
+
+          <option
+            value="allow"
+            selected>
+            重複OK
+          </option>
+
+          <option value="deny">
+            重複NG
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="setting-row setting-row-stack">
+
+        <div>
+
+          <span>
+            飲み物の重複
+          </span>
+
+          <small>
+            現在の店で同じ名前を登録するか
+          </small>
+
+        </div>
+
+
+        <select
+          class="select-input"
+          id="drinkDuplicateModeInput">
+
+          <option
+            value="allow"
+            selected>
+            重複OK
+          </option>
+
+          <option value="deny">
+            重複NG
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <p class="setting-note">
+        店を変えると、その店での「重複NG」の判定だけリセットされます。ゲーム盤面・ライン数・経過時間・ストックはそのままです。
+      </p>
+
+    </div>
+
+
+    <!-- ==============================
+         戦績
+         ============================== -->
+
+    <div class="card">
+
+      <h2>戦績</h2>
+
+
+      <div class="setting-row">
+        <span>消したライン</span>
+        <span id="statLines">
+          0 / 3
+        </span>
+      </div>
+
+
+      <div class="setting-row">
+        <span>間食した回数</span>
+        <span id="statEat">
+          0
+        </span>
+      </div>
+
+
+      <div class="setting-row">
+        <span>経過時間</span>
+        <span id="statTime">
+          00:00
+        </span>
+      </div>
+
+    </div>
+
+
+    <!-- ギブアップ -->
+    <button
+      class="giveup-btn"
+      id="giveUpBtn"
+      type="button">
+      もう食べられない・飲めない（ギブアップ）
+    </button>
+
+
+    <!-- リセット -->
+    <button
+      class="reset-btn"
+      id="resetBtn"
+      type="button">
+      最初からやり直す
+    </button>
 
   </div>
 
 </div>
 
+</div>
 
-<!-- 自由選択 -->
+
+<!-- ==============================
+     自由選択モーダル
+     ============================== -->
+
 <div
   class="overlay"
   id="chooseOverlay"
@@ -382,18 +485,31 @@
     aria-labelledby="chooseTitle">
 
     <h3 id="chooseTitle">
-      ミノを選ぶ
+      自由選択
     </h3>
 
+
     <p>
-      自由選択です。
-      実際の形を見て、出すミノを選んでください。
+      現在のテトリスの譜面を確認して、出すミノを選んでください。
     </p>
+
+
+    <div class="choice-board-wrap">
+
+      <canvas
+        id="choiceBoardPreview"
+        width="220"
+        height="440">
+      </canvas>
+
+    </div>
+
 
     <div
       class="choice-grid"
       id="choiceGrid">
     </div>
+
 
     <button
       class="modal-secondary"
@@ -407,7 +523,10 @@
 </div>
 
 
-<!-- ゲーム終了 -->
+<!-- ==============================
+     終了モーダル
+     ============================== -->
+
 <div
   class="overlay"
   id="endOverlay"
@@ -419,30 +538,46 @@
       ゲームオーバー
     </h3>
 
+
     <p id="endMessage"></p>
 
 
     <div class="stat-row">
-      <span>消したライン</span>
+
+      <span>
+        消したライン
+      </span>
+
       <span id="endLines">
         0 / 3
       </span>
+
     </div>
 
 
     <div class="stat-row">
-      <span>間食した回数</span>
+
+      <span>
+        間食した回数
+      </span>
+
       <span id="endEat">
         0
       </span>
+
     </div>
 
 
     <div class="stat-row">
-      <span>経過時間</span>
+
+      <span>
+        経過時間
+      </span>
+
       <span id="endTime">
         00:00
       </span>
+
     </div>
 
 
