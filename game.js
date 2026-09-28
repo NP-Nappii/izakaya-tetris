@@ -1,18 +1,30 @@
 (function () {
   "use strict";
 
+
+  // =========================================================
+  // 基本設定
+  // =========================================================
+
   var COLS = 10;
   var ROWS = 20;
   var BLOCK = 30;
 
   var STORAGE_KEY =
-    "izakaya_tetris_save_v5";
+    "izakaya_tetris_save_v6";
 
-  var LEGACY_STORAGE_KEY =
-    "izakaya_tetris_save_v4";
+  var LEGACY_KEYS = [
+    "izakaya_tetris_save_v5",
+    "izakaya_tetris_save_v4",
+    "izakaya_tetris_save_v3"
+  ];
 
-  var MAX_TARGET_LINES = 20;
+  var MAX_TARGET_LINES = 18;
 
+
+  // =========================================================
+  // ミノ
+  // =========================================================
 
   var SHAPES = {
 
@@ -70,13 +82,10 @@
     Object.keys(SHAPES);
 
 
-  var OUTCOMES =
-    TYPES.concat([
-      "MISS",
-      "FREE"
-    ]);
-
-
+  /*
+   * ここは指定どおり
+   * アルファベット表記のまま
+   */
   var OUTCOME_LABEL = {
 
     I: "I",
@@ -94,9 +103,47 @@
   };
 
 
+  /*
+   * 除外チップの色
+   */
+  var OUTCOME_COLOR = {
+
+    I: "#3fb7c9",
+    O: "#e8c14a",
+    T: "#b478d6",
+    S: "#5fbf7a",
+    Z: "#e0574c",
+    J: "#5b83e0",
+    L: "#e8942e",
+
+    MISS: "#8d8172",
+
+    FREE: "#d3a24d"
+
+  };
+
+
+  /*
+   * 7ミノ + スカ + 自由選択
+   */
+  var OUTCOMES =
+    TYPES.concat([
+      "MISS",
+      "FREE"
+    ]);
+
+
   var GARBAGE_COLOR =
     "#7d7466";
 
+
+  var DEFAULT_DROP_INTERVAL =
+    700;
+
+
+  // =========================================================
+  // 状態
+  // =========================================================
 
   var state = null;
 
@@ -104,13 +151,17 @@
 
   var ctx = null;
 
+  var choiceCtx = null;
+
   var lastTime = 0;
 
   var acc = 0;
 
+  var touchLastEnd = 0;
+
 
   // =========================================================
-  // 状態
+  // 新規状態
   // =========================================================
 
   function freshState() {
@@ -121,8 +172,13 @@
         ? state.targetLines
         : 3;
 
+
     targetLines =
       clampTarget(targetLines);
+
+
+    var now =
+      Date.now();
 
 
     return {
@@ -132,69 +188,162 @@
           targetLines
         ),
 
-      active: null,
 
-      stockCount: 0,
+      active:
+        null,
 
-      excluded: [],
+
+      stockCount:
+        0,
+
+
+      excluded:
+        [],
+
 
       targetLines:
         targetLines,
 
-      linesCleared: 0,
 
-      eatCount: 0,
+      linesCleared:
+        0,
 
-      log: [],
 
-      over: false,
+      eatCount:
+        0,
 
-      won: false,
+
+      log:
+        [],
+
+
+      over:
+        false,
+
+
+      won:
+        false,
+
 
       startedAt:
-        Date.now(),
+        now,
 
-      elapsedMs: 0,
 
-      endedAt: null,
+      elapsedMs:
+        0,
 
-      // 1段落ちるまでのミリ秒
-      dropInterval: 700,
 
-      // 重複設定
-      duplicateMode: "allow",
+      endedAt:
+        null,
 
-      // 現在の店で登録済みの名前
-      registeredItems: [],
 
-      // 現在の店
-      storeName: "最初の店"
+      dropInterval:
+        DEFAULT_DROP_INTERVAL,
+
+
+      foodDuplicateMode:
+        "allow",
+
+
+      drinkDuplicateMode:
+        "allow",
+
+
+      registeredFoods:
+        [],
+
+
+      registeredDrinks:
+        [],
+
+
+      storeName:
+        "最初の店",
+
+
+      paused:
+        false,
+
+
+      timerStartedAt:
+        now
 
     };
 
   }
 
 
+  // =========================================================
+  // 数値
+  // =========================================================
+
   function clampTarget(v) {
 
-    v = parseInt(v, 10);
+    v =
+      parseInt(
+        v,
+        10
+      );
 
-    if (isNaN(v))
+
+    if (isNaN(v)) {
       v = 3;
+    }
 
-    if (v < 1)
+
+    if (v < 1) {
       v = 1;
+    }
 
-    if (v > MAX_TARGET_LINES)
+
+    if (
+      v > MAX_TARGET_LINES
+    ) {
       v = MAX_TARGET_LINES;
+    }
+
 
     return v;
   }
 
 
+  function clampDropInterval(v) {
+
+    v =
+      parseInt(
+        v,
+        10
+      );
+
+
+    if (isNaN(v)) {
+      v =
+        DEFAULT_DROP_INTERVAL;
+    }
+
+
+    if (v < 150) {
+      v = 150;
+    }
+
+
+    if (v > 1200) {
+      v = 1200;
+    }
+
+
+    return v;
+  }
+
+
+  // =========================================================
+  // 盤面
+  // =========================================================
+
   function makeEmptyBoard() {
 
     var board = [];
+
 
     for (
       var r = 0;
@@ -203,18 +352,17 @@
     ) {
 
       board.push(
-        new Array(COLS).fill(null)
+        new Array(
+          COLS
+        ).fill(null)
       );
 
     }
 
+
     return board;
   }
 
-
-  // =========================================================
-  // 詰み盤面
-  // =========================================================
 
   function makeGarbageBoard(
     garbageRows
@@ -224,15 +372,23 @@
       makeEmptyBoard();
 
 
-    garbageRows = Math.min(
-      ROWS,
-      Math.max(
-        1,
-        garbageRows
-      )
-    );
+    garbageRows =
+      Math.min(
+        ROWS - 2,
+        Math.max(
+          1,
+          garbageRows
+        )
+      );
 
 
+    /*
+     * 18ラインなら下18段が埋まり、
+     * 上2段が空く。
+     *
+     * これにより初手で
+     * いきなり出現できない状態を防ぐ。
+     */
     for (
       var gr =
         ROWS - garbageRows;
@@ -242,7 +398,9 @@
       gr++
     ) {
 
-      // 2～3個の穴を作成
+      /*
+       * 2～3個の穴
+       */
       var gaps =
         2 +
         Math.floor(
@@ -259,7 +417,8 @@
 
         var c =
           Math.floor(
-            Math.random() * COLS
+            Math.random() *
+            COLS
           );
 
 
@@ -310,10 +469,15 @@
 
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify(state)
+        JSON.stringify(
+          state
+        )
       );
 
-    } catch (e) {}
+    } catch (e) {
+      // localStorageが使えない環境でも
+      // ゲームそのものは継続
+    }
 
   }
 
@@ -330,25 +494,79 @@
       );
 
 
-    var migrated = false;
+    if (parsed) {
 
-
-    if (!parsed) {
-
-      parsed =
-        tryLoad(
-          LEGACY_STORAGE_KEY
-        );
-
-      migrated =
-        !!parsed;
+      return normalizeLoadedState(
+        parsed
+      );
 
     }
 
 
+    /*
+     * 旧バージョンからの移行
+     */
+    for (
+      var i = 0;
+      i < LEGACY_KEYS.length;
+      i++
+    ) {
+
+      parsed =
+        tryLoad(
+          LEGACY_KEYS[i]
+        );
+
+
+      if (parsed) {
+
+        return normalizeLoadedState(
+          parsed
+        );
+
+      }
+
+    }
+
+
+    return null;
+  }
+
+
+  function tryLoad(key) {
+
+    try {
+
+      var raw =
+        window.localStorage.getItem(
+          key
+        );
+
+
+      if (!raw) {
+        return null;
+      }
+
+
+      return JSON.parse(
+        raw
+      );
+
+    } catch (e) {
+
+      return null;
+
+    }
+
+  }
+
+
+  function normalizeLoadedState(
+    parsed
+  ) {
+
     if (
       !parsed ||
-      !parsed.board ||
       !Array.isArray(
         parsed.board
       )
@@ -459,7 +677,6 @@
 
 
     if (
-      !parsed.endedAt ||
       typeof parsed.endedAt
       !== "number"
     ) {
@@ -477,14 +694,61 @@
 
 
     if (
-      parsed.duplicateMode
+      parsed.foodDuplicateMode
       !== "deny" &&
-      parsed.duplicateMode
+      parsed.foodDuplicateMode
       !== "allow"
     ) {
 
-      parsed.duplicateMode =
-        "allow";
+      /*
+       * 旧版のduplicateModeを
+       * 食べ物へ移行
+       */
+      parsed.foodDuplicateMode =
+        parsed.duplicateMode === "deny"
+          ? "deny"
+          : "allow";
+
+    }
+
+
+    if (
+      parsed.drinkDuplicateMode
+      !== "deny" &&
+      parsed.drinkDuplicateMode
+      !== "allow"
+    ) {
+
+      /*
+       * 旧版では飲食共通設定だったため
+       * その設定を引き継ぐ
+       */
+      parsed.drinkDuplicateMode =
+        parsed.duplicateMode === "deny"
+          ? "deny"
+          : "allow";
+
+    }
+
+
+    if (
+      !Array.isArray(
+        parsed.registeredFoods
+      )
+    ) {
+
+      parsed.registeredFoods = [];
+
+    }
+
+
+    if (
+      !Array.isArray(
+        parsed.registeredDrinks
+      )
+    ) {
+
+      parsed.registeredDrinks = [];
 
     }
 
@@ -502,56 +766,72 @@
 
 
     if (
-      !Array.isArray(
-        parsed.registeredItems
-      )
+      typeof parsed.paused
+      !== "boolean"
     ) {
 
-      parsed.registeredItems =
-        [];
+      parsed.paused = false;
 
     }
 
 
-    // v4からの移行
+    /*
+     * 保存データ読み込み直後は
+     * タイマーを現在時刻から再開。
+     *
+     * 前回終了時刻との差分を
+     * 勝手に加算しない。
+     */
+    parsed.paused = false;
+
+    parsed.timerStartedAt =
+      Date.now();
+
+
+    /*
+     * 旧版データから
+     * 重複判定配列を再構築
+     */
     if (
-      migrated &&
-      parsed.duplicateMode
-      === "deny"
+      parsed.registeredFoods.length === 0
     ) {
 
-      parsed.registeredItems =
-        parsed.log
-
-          .filter(
-            function (entry) {
-
-              return (
-                !entry.store ||
-                entry.store
-                === parsed.storeName
-              );
-
-            }
-          )
-
-          .map(
-            function (entry) {
-
-              return normalizeItemName(
-                entry.name || ""
-              );
-
-            }
-          )
-
-          .filter(Boolean);
-
-
-      parsed.registeredItems =
-        unique(
-          parsed.registeredItems
+      parsed.registeredFoods =
+        rebuildRegisteredItems(
+          parsed,
+          "food"
         );
+
+    }
+
+
+    if (
+      parsed.registeredDrinks.length === 0
+    ) {
+
+      parsed.registeredDrinks =
+        rebuildRegisteredItems(
+          parsed,
+          "drink"
+        );
+
+    }
+
+
+    /*
+     * activeが壊れている場合は解除
+     */
+    if (
+      parsed.active &&
+      (
+        !parsed.active.matrix ||
+        !Array.isArray(
+          parsed.active.matrix
+        )
+      )
+    ) {
+
+      parsed.active = null;
 
     }
 
@@ -560,31 +840,93 @@
   }
 
 
-  function tryLoad(key) {
+  function rebuildRegisteredItems(
+    loaded,
+    category
+  ) {
 
-    try {
-
-      var raw =
-        window.localStorage.getItem(
-          key
-        );
+    var result = [];
 
 
-      if (!raw)
-        return null;
-
-
-      return JSON.parse(
-        raw
-      );
-
-    } catch (e) {
-
-      return null;
-
+    if (!Array.isArray(loaded.log)) {
+      return result;
     }
+
+
+    loaded.log.forEach(
+      function (entry) {
+
+        if (
+          category === "food" &&
+          entry.category !== "food"
+        ) {
+
+          return;
+
+        }
+
+
+        if (
+          category === "drink" &&
+          entry.category !== "drink"
+        ) {
+
+          return;
+
+        }
+
+
+        /*
+         * 旧データでcategoryが
+         * 存在しない場合
+         */
+        if (
+          !entry.category &&
+          category === "food"
+        ) {
+
+          result.push(
+            normalizeItemName(
+              entry.name || ""
+            )
+          );
+
+        }
+
+
+        if (
+          entry.category === category
+        ) {
+
+          if (
+            !entry.store ||
+            entry.store ===
+              loaded.storeName
+          ) {
+
+            result.push(
+              normalizeItemName(
+                entry.name || ""
+              )
+            );
+
+          }
+
+        }
+
+      }
+    );
+
+
+    return unique(
+      result.filter(Boolean)
+    );
   }
 
+
+  // =========================================================
+  // 配列
+  // =========================================================
 
   function unique(arr) {
 
@@ -606,7 +948,7 @@
 
 
   // =========================================================
-  // ミノ
+  // ミノ生成
   // =========================================================
 
   function cloneMatrix(m) {
@@ -637,19 +979,24 @@
         (
           COLS -
           matrix[0].length
-        ) / 2
+        ) /
+        2
       );
 
 
     return {
 
-      type: type,
+      type:
+        type,
 
-      matrix: matrix,
+      matrix:
+        matrix,
 
-      row: 0,
+      row:
+        0,
 
-      col: col,
+      col:
+        col,
 
       color:
         COLORS[type]
@@ -679,7 +1026,11 @@
 
         if (
           !matrix[r][c]
-        ) continue;
+        ) {
+
+          continue;
+
+        }
 
 
         var br =
@@ -726,7 +1077,7 @@
     var cols =
       m[0].length;
 
-    var res = [];
+    var result = [];
 
 
     for (
@@ -735,40 +1086,44 @@
       c++
     ) {
 
-      var newRow = [];
+      var row = [];
 
 
       for (
         var r =
           rows - 1;
-
         r >= 0;
-
         r--
       ) {
 
-        newRow.push(
+        row.push(
           m[r][c]
         );
 
       }
 
 
-      res.push(
-        newRow
+      result.push(
+        row
       );
 
     }
 
 
-    return res;
+    return result;
   }
 
 
   function tryRotate() {
 
-    if (!state.active)
+    if (
+      !state.active ||
+      state.paused
+    ) {
+
       return;
+
+    }
 
 
     var rotated =
@@ -777,14 +1132,13 @@
       );
 
 
-    var kicks =
-      [
-        0,
-        -1,
-        1,
-        -2,
-        2
-      ];
+    var kicks = [
+      0,
+      -1,
+      1,
+      -2,
+      2
+    ];
 
 
     for (
@@ -809,22 +1163,34 @@
         state.active.matrix =
           rotated;
 
+
         state.active.col =
           newCol;
 
-        render();
+
         save();
 
+        render();
+
         return;
+
       }
+
     }
+
   }
 
 
   function tryMove(dx) {
 
-    if (!state.active)
+    if (
+      !state.active ||
+      state.paused
+    ) {
+
       return;
+
+    }
 
 
     var newCol =
@@ -843,8 +1209,13 @@
       state.active.col =
         newCol;
 
-      render();
+
+      /*
+       * 操作直後にも保存
+       */
       save();
+
+      render();
 
     }
 
@@ -853,8 +1224,14 @@
 
   function softDrop() {
 
-    if (!state.active)
+    if (
+      !state.active ||
+      state.paused
+    ) {
+
       return;
+
+    }
 
 
     if (
@@ -866,6 +1243,13 @@
     ) {
 
       state.active.row += 1;
+
+
+      /*
+       * スリープ直前などで
+       * 状態を失わないように保存
+       */
+      save();
 
       render();
 
@@ -880,8 +1264,14 @@
 
   function hardDrop() {
 
-    if (!state.active)
+    if (
+      !state.active ||
+      state.paused
+    ) {
+
       return;
+
+    }
 
 
     while (
@@ -901,10 +1291,19 @@
   }
 
 
+  // =========================================================
+  // ミノ固定
+  // =========================================================
+
   function lockPiece() {
 
     var p =
       state.active;
+
+
+    if (!p) {
+      return;
+    }
 
 
     for (
@@ -919,8 +1318,13 @@
         c++
       ) {
 
-        if (!p.matrix[r][c])
+        if (
+          !p.matrix[r][c]
+        ) {
+
           continue;
+
+        }
 
 
         var br =
@@ -936,7 +1340,9 @@
             "盤面から溢れました。もう戻れません。"
           );
 
+
           return;
+
         }
 
 
@@ -966,7 +1372,9 @@
       setStatus(
 
         state.stockCount > 0
+
           ? "「ミノを出す」を押して続けよう"
+
           : "間食してストックを貯めよう"
 
       );
@@ -974,6 +1382,9 @@
     }
 
 
+    /*
+     * ミノ固定後は必ず保存
+     */
     save();
 
     render();
@@ -982,7 +1393,7 @@
 
 
   // =========================================================
-  // ライン
+  // ライン消去
   // =========================================================
 
   function clearLines() {
@@ -1060,6 +1471,7 @@
       );
 
     }
+
   }
 
 
@@ -1075,34 +1487,61 @@
       state.won =
         true;
 
-      freezeElapsed();
+
+      updateElapsed();
+
+
+      state.endedAt =
+        Date.now();
+
 
       save();
+
 
       showEnd(true);
 
     }
+
   }
 
 
-  function triggerGameOver(msg) {
+  // =========================================================
+  // ゲームオーバー
+  // =========================================================
+
+  function triggerGameOver(
+    message
+  ) {
 
     state.over =
       true;
 
+
     state.active =
       null;
 
-    freezeElapsed();
+
+    updateElapsed();
+
+
+    state.endedAt =
+      Date.now();
+
 
     showEnd(
       false,
-      msg
+      message
     );
 
+
     save();
+
   }
 
+
+  // =========================================================
+  // ギブアップ
+  // =========================================================
 
   function giveUp() {
 
@@ -1112,6 +1551,7 @@
     ) {
 
       return;
+
     }
 
 
@@ -1122,17 +1562,19 @@
     ) {
 
       return;
+
     }
 
 
     triggerGameOver(
       "ギブアップ…満腹・酔いの限界でリタイアしました。"
     );
+
   }
 
 
   // =========================================================
-  // ストック・除外
+  // ストック候補除外
   // =========================================================
 
   function toggleExclude(
@@ -1142,28 +1584,38 @@
     if (
       state.over ||
       state.won ||
+      state.paused ||
       state.active
     ) {
 
       return;
+
     }
 
 
-    var idx =
+    var index =
       state.excluded.indexOf(
         outcome
       );
 
 
-    // 除外解除
-    if (idx !== -1) {
+    /*
+     * ===========================
+     * 除外済み → 取り消し
+     * ===========================
+     */
+
+    if (index !== -1) {
 
       state.excluded.splice(
-        idx,
+        index,
         1
       );
 
 
+      /*
+       * 除外に使ったストックを返却
+       */
       state.stockCount +=
         1;
 
@@ -1181,14 +1633,24 @@
       render();
 
       return;
+
     }
 
+
+    /*
+     * ===========================
+     * 新しく除外
+     * ===========================
+     */
 
     var remaining =
       OUTCOMES.length -
       state.excluded.length;
 
 
+    /*
+     * 少なくとも1候補は残す
+     */
     if (
       remaining <= 1
     ) {
@@ -1227,22 +1689,32 @@
     save();
 
     render();
+
   }
 
+
+  // =========================================================
+  // ミノ抽選
+  // =========================================================
 
   function requestSpawn() {
 
     if (
       state.over ||
-      state.won
+      state.won ||
+      state.paused
     ) {
 
       return;
+
     }
 
 
-    if (state.active)
+    if (state.active) {
+
       return;
+
+    }
 
 
     if (
@@ -1250,27 +1722,38 @@
     ) {
 
       return;
+
     }
 
 
-    // 押した瞬間に消費確定
-    state.stockCount -= 1;
+    /*
+     * 「ミノを出す」を押した瞬間に
+     * ストック消費を確定
+     */
+    state.stockCount -=
+      1;
 
 
     var pool =
       OUTCOMES.filter(
-        function (o) {
+        function (outcome) {
 
           return (
-            state.excluded.indexOf(o)
-            === -1
+            state.excluded.indexOf(
+              outcome
+            ) === -1
           );
 
         }
       );
 
 
-    state.excluded = [];
+    /*
+     * 今回の抽選を開始したら
+     * 除外状態はリセット
+     */
+    state.excluded =
+      [];
 
 
     var outcome =
@@ -1282,7 +1765,9 @@
       ];
 
 
-    // スカ以外だけスクロール
+    /*
+     * スカのときはスクロールしない
+     */
     if (
       outcome !== "MISS"
     ) {
@@ -1292,9 +1777,16 @@
     }
 
 
+    /*
+     * ストック消費はこの時点で保存
+     */
+    save();
+
+
     handleOutcome(
       outcome
     );
+
   }
 
 
@@ -1302,13 +1794,18 @@
     outcome
   ) {
 
-    // スカ
+    /*
+     * ===========================
+     * スカ
+     * ===========================
+     */
+
     if (
       outcome === "MISS"
     ) {
 
       setStatus(
-        "スカ…ハズレでした。ストックを1消費しました。盤面はそのままです。"
+        "スカ…ハズレでした。ストックを1消費しました。"
       );
 
 
@@ -1317,16 +1814,22 @@
       render();
 
       return;
+
     }
 
 
-    // 自由選択
+    /*
+     * ===========================
+     * 自由選択
+     * ===========================
+     */
+
     if (
       outcome === "FREE"
     ) {
 
       setStatus(
-        "自由選択：形を見てミノを選んでください。"
+        "自由選択：現在の盤面を確認してミノを選んでください。"
       );
 
 
@@ -1346,19 +1849,41 @@
       render();
 
       return;
+
     }
 
 
-    // 通常ミノ
+    /*
+     * ===========================
+     * 通常ミノ
+     * ===========================
+     */
+
     trySpawnType(
       outcome
     );
+
   }
 
+
+  // =========================================================
+  // ミノ出現
+  // =========================================================
 
   function trySpawnType(
     type
   ) {
+
+    if (
+      state.over ||
+      state.won ||
+      state.paused
+    ) {
+
+      return;
+
+    }
+
 
     var piece =
       spawnPieceOfType(
@@ -1378,7 +1903,9 @@
         "盤面が完全に埋まりました。KO..."
       );
 
+
       return;
+
     }
 
 
@@ -1386,20 +1913,25 @@
       piece;
 
 
+    /*
+     * 新しいミノが出た時点でも保存
+     */
+    save();
+
+
     setStatus(
-      type +
-      "ミノが出ました。落としてください。"
+      OUTCOME_LABEL[type] +
+      "が出ました。落としてください。"
     );
 
 
-    save();
-
     render();
+
   }
 
 
   // =========================================================
-  // 間食・重複
+  // 名前正規化
   // =========================================================
 
   function normalizeItemName(
@@ -1407,35 +1939,54 @@
   ) {
 
     return String(name)
+
       .normalize("NFKC")
+
       .trim()
+
       .toLowerCase()
+
+      /*
+       * 全角・半角を整理したうえで
+       * 空白を無視
+       */
       .replace(/\s+/g, "");
   }
 
 
-  function eatItem() {
+  // =========================================================
+  // 食べ物登録
+  // =========================================================
+
+  function eatFood() {
 
     if (
       state.over ||
-      state.won
+      state.won ||
+      state.paused
     ) {
 
       return;
+
     }
 
 
+    var input =
+      document.getElementById(
+        "foodName"
+      );
+
+
     var name =
-      document
-        .getElementById(
-          "itemName"
-        )
-        .value
-        .trim();
+      input.value.trim();
 
 
-    if (!name)
-      name = "間食";
+    if (!name) {
+
+      name =
+        "食べ物";
+
+    }
 
 
     var normalized =
@@ -1444,21 +1995,23 @@
       );
 
 
-    // 重複NG
+    /*
+     * 重複NG
+     */
     if (
-      state.duplicateMode ===
+      state.foodDuplicateMode
+      ===
       "deny" &&
-      state.registeredItems
-        .indexOf(
-          normalized
-        ) !== -1
+      state.registeredFoods.indexOf(
+        normalized
+      ) !== -1
     ) {
 
       setStatus(
 
         "「" +
         name +
-        "」は現在の店ですでに登録済みです。重複NGのため登録できません。"
+        "」は現在の店ですでに登録されています。食べ物は重複NGです。"
 
       );
 
@@ -1466,32 +2019,47 @@
       render();
 
       return;
+
     }
 
 
-    // ストック追加
-    state.stockCount += 1;
+    /*
+     * ストック追加
+     */
+    state.stockCount +=
+      1;
 
-    state.eatCount += 1;
+
+    state.eatCount +=
+      1;
 
 
+    /*
+     * 重複判定用へ登録
+     */
     if (
-      state.duplicateMode ===
-      "deny"
+      state.registeredFoods.indexOf(
+        normalized
+      ) === -1
     ) {
 
-      state.registeredItems.push(
+      state.registeredFoods.push(
         normalized
       );
 
     }
 
 
-    // 店名も保存
+    /*
+     * ログ
+     */
     state.log.unshift({
 
       name:
         name,
+
+      category:
+        "food",
 
       store:
         state.storeName,
@@ -1501,8 +2069,10 @@
           .toLocaleTimeString(
             "ja-JP",
             {
-              hour: "2-digit",
-              minute: "2-digit"
+              hour:
+                "2-digit",
+              minute:
+                "2-digit"
             }
           )
 
@@ -1518,40 +2088,194 @@
     }
 
 
-    document
-      .getElementById(
-        "itemName"
-      )
-      .value = "";
+    input.value =
+      "";
 
 
-    if (!state.active) {
+    setStatus(
 
-      setStatus(
-        "「ミノを出す」を押して盤面に置こう"
-      );
+      "「" +
+      name +
+      "」を登録しました。ストック＋1"
 
-    }
+    );
 
 
     save();
 
     render();
+
   }
 
 
   // =========================================================
-  // 店変更
+  // 飲み物登録
+  // =========================================================
+
+  function eatDrink() {
+
+    if (
+      state.over ||
+      state.won ||
+      state.paused
+    ) {
+
+      return;
+
+    }
+
+
+    var input =
+      document.getElementById(
+        "drinkName"
+      );
+
+
+    var name =
+      input.value.trim();
+
+
+    if (!name) {
+
+      name =
+        "飲み物";
+
+    }
+
+
+    var normalized =
+      normalizeItemName(
+        name
+      );
+
+
+    /*
+     * 重複NG
+     */
+    if (
+      state.drinkDuplicateMode
+      ===
+      "deny" &&
+      state.registeredDrinks.indexOf(
+        normalized
+      ) !== -1
+    ) {
+
+      setStatus(
+
+        "「" +
+        name +
+        "」は現在の店ですでに登録されています。飲み物は重複NGです。"
+
+      );
+
+
+      render();
+
+      return;
+
+    }
+
+
+    /*
+     * ストック追加
+     */
+    state.stockCount +=
+      1;
+
+
+    state.eatCount +=
+      1;
+
+
+    /*
+     * 重複判定用へ登録
+     */
+    if (
+      state.registeredDrinks.indexOf(
+        normalized
+      ) === -1
+    ) {
+
+      state.registeredDrinks.push(
+        normalized
+      );
+
+    }
+
+
+    /*
+     * ログ
+     */
+    state.log.unshift({
+
+      name:
+        name,
+
+      category:
+        "drink",
+
+      store:
+        state.storeName,
+
+      t:
+        new Date()
+          .toLocaleTimeString(
+            "ja-JP",
+            {
+              hour:
+                "2-digit",
+              minute:
+                "2-digit"
+            }
+          )
+
+    });
+
+
+    if (
+      state.log.length > 30
+    ) {
+
+      state.log.pop();
+
+    }
+
+
+    input.value =
+      "";
+
+
+    setStatus(
+
+      "「" +
+      name +
+      "」を登録しました。ストック＋1"
+
+    );
+
+
+    save();
+
+    render();
+
+  }
+
+
+  // =========================================================
+  // 店を変更
   // =========================================================
 
   function changeStore() {
 
     if (
       state.over ||
-      state.won
+      state.won ||
+      state.paused
     ) {
 
       return;
+
     }
 
 
@@ -1559,14 +2283,13 @@
       window.prompt(
 
         "変更先の店名を入力してください。\n" +
-        "店を変えると、この店での重複NG判定はリセットされます。",
+        "店を変えると、食べ物・飲み物の重複判定がリセットされます。",
 
         state.storeName
 
       );
 
 
-    // キャンセル
     if (
       nextName === null
     ) {
@@ -1583,10 +2306,11 @@
     if (!nextName) {
 
       setStatus(
-        "店名が空欄のため、店は変更しませんでした。"
+        "店名が空欄のため変更しませんでした。"
       );
 
       return;
+
     }
 
 
@@ -1596,20 +2320,30 @@
     ) {
 
       setStatus(
-        "現在と同じ店です。重複判定もそのままです。"
+        "現在と同じ店です。重複判定はそのままです。"
       );
 
       return;
+
     }
 
 
+    /*
+     * 店変更
+     */
     state.storeName =
       nextName;
 
 
-    // 店を変えたので
-    // 重複判定をリセット
-    state.registeredItems =
+    /*
+     * 食べ物と飲み物の
+     * 重複判定を両方リセット
+     */
+    state.registeredFoods =
+      [];
+
+
+    state.registeredDrinks =
       [];
 
 
@@ -1617,7 +2351,7 @@
 
       "「" +
       nextName +
-      "」に店を変更しました。重複NGの判定をリセットしました。"
+      "」に店を変更しました。食べ物・飲み物の重複判定をリセットしました。"
 
     );
 
@@ -1625,11 +2359,12 @@
     save();
 
     render();
+
   }
 
 
   // =========================================================
-  // 自由選択
+  // 自由選択モーダル
   // =========================================================
 
   function openChooseModal(
@@ -1652,38 +2387,43 @@
       callback;
 
 
-    grid.innerHTML = "";
+    grid.innerHTML =
+      "";
 
 
+    /*
+     * 先に現在盤面を描画
+     */
+    renderChoiceBoardPreview();
+
+
+    /*
+     * 7ミノ
+     */
     TYPES.forEach(
       function (type) {
 
-        var btn =
+        var button =
           document.createElement(
             "button"
           );
 
 
-        btn.className =
-          "choice-piece";
-
-
-        btn.style.borderColor =
-          COLORS[type];
-
-
-        btn.type =
+        button.type =
           "button";
 
 
-        btn.setAttribute(
-          "aria-label",
-          type +
-          "ミノを選ぶ"
-        );
+        button.className =
+          "choice-piece";
 
 
-        // ミノの形をプレビュー
+        button.style.borderColor =
+          COLORS[type];
+
+
+        /*
+         * 実際のミノ形プレビュー
+         */
         var preview =
           document.createElement(
             "div"
@@ -1698,18 +2438,16 @@
           SHAPES[type];
 
 
-        preview.style
-          .gridTemplateColumns =
-            "repeat(" +
-            shape[0].length +
-            ", 12px)";
+        preview.style.gridTemplateColumns =
+          "repeat(" +
+          shape[0].length +
+          ", 12px)";
 
 
-        preview.style
-          .gridTemplateRows =
-            "repeat(" +
-            shape.length +
-            ", 12px)";
+        preview.style.gridTemplateRows =
+          "repeat(" +
+          shape.length +
+          ", 12px)";
 
 
         for (
@@ -1760,20 +2498,20 @@
 
 
         label.textContent =
-          type;
+          OUTCOME_LABEL[type];
 
 
-        btn.appendChild(
+        button.appendChild(
           preview
         );
 
 
-        btn.appendChild(
+        button.appendChild(
           label
         );
 
 
-        btn.addEventListener(
+        button.addEventListener(
           "click",
           function () {
 
@@ -1799,7 +2537,7 @@
 
 
         grid.appendChild(
-          btn
+          button
         );
 
       }
@@ -1815,6 +2553,7 @@
       "aria-hidden",
       "false"
     );
+
   }
 
 
@@ -1835,25 +2574,35 @@
       "aria-hidden",
       "true"
     );
+
   }
 
 
   // =========================================================
-  // 描画
+  // 自由選択の盤面プレビュー
   // =========================================================
 
-  function render() {
+  function renderChoiceBoardPreview() {
 
-    if (!ctx) {
+    var canvas =
+      document.getElementById(
+        "choiceBoardPreview"
+      );
 
-      ctx =
-        document
-          .getElementById(
-            "board"
-          )
-          .getContext(
-            "2d"
-          );
+
+    if (!canvas) {
+
+      return;
+
+    }
+
+
+    if (!choiceCtx) {
+
+      choiceCtx =
+        canvas.getContext(
+          "2d"
+        );
 
     }
 
@@ -1880,6 +2629,194 @@
         .trim();
 
 
+    /*
+     * 10列 × 20行
+     * 220 × 440
+     * = 22px
+     */
+    var previewBlock =
+      22;
+
+
+    choiceCtx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+
+    choiceCtx.fillStyle =
+      emptyColor;
+
+
+    choiceCtx.fillRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+
+    /*
+     * グリッド
+     */
+    choiceCtx.strokeStyle =
+      gridColor;
+
+
+    choiceCtx.lineWidth =
+      1;
+
+
+    for (
+      var c = 0;
+      c <= COLS;
+      c++
+    ) {
+
+      choiceCtx.beginPath();
+
+
+      choiceCtx.moveTo(
+        c * previewBlock,
+        0
+      );
+
+
+      choiceCtx.lineTo(
+        c * previewBlock,
+        canvas.height
+      );
+
+
+      choiceCtx.stroke();
+
+    }
+
+
+    for (
+      var r = 0;
+      r <= ROWS;
+      r++
+    ) {
+
+      choiceCtx.beginPath();
+
+
+      choiceCtx.moveTo(
+        0,
+        r * previewBlock
+      );
+
+
+      choiceCtx.lineTo(
+        canvas.width,
+        r * previewBlock
+      );
+
+
+      choiceCtx.stroke();
+
+    }
+
+
+    /*
+     * 現在の盤面
+     */
+    for (
+      var br = 0;
+      br < ROWS;
+      br++
+    ) {
+
+      for (
+        var bc = 0;
+        bc < COLS;
+        bc++
+      ) {
+
+        if (
+          !state.board[br][bc]
+        ) {
+
+          continue;
+
+        }
+
+
+        choiceCtx.fillStyle =
+          state.board[br][bc];
+
+
+        choiceCtx.fillRect(
+          bc * previewBlock + 1,
+          br * previewBlock + 1,
+          previewBlock - 2,
+          previewBlock - 2
+        );
+
+      }
+
+    }
+
+  }
+
+
+  // =========================================================
+  // メイン描画
+  // =========================================================
+
+  function render() {
+
+    if (!ctx) {
+
+      var canvas =
+        document.getElementById(
+          "board"
+        );
+
+
+      if (!canvas) {
+
+        return;
+
+      }
+
+
+      ctx =
+        canvas.getContext(
+          "2d"
+        );
+
+    }
+
+
+    var styles =
+      getComputedStyle(
+        document.documentElement
+      );
+
+
+    var emptyColor =
+      styles
+        .getPropertyValue(
+          "--board-empty"
+        )
+        .trim();
+
+
+    var gridColor =
+      styles
+        .getPropertyValue(
+          "--board-grid"
+        )
+        .trim();
+
+
+    /*
+     * 背景
+     */
     ctx.fillStyle =
       emptyColor;
 
@@ -1892,6 +2829,9 @@
     );
 
 
+    /*
+     * グリッド
+     */
     ctx.strokeStyle =
       gridColor;
 
@@ -1900,7 +2840,6 @@
       1;
 
 
-    // 縦線
     for (
       var gc = 0;
       gc <= COLS;
@@ -1909,22 +2848,24 @@
 
       ctx.beginPath();
 
+
       ctx.moveTo(
         gc * BLOCK,
         0
       );
+
 
       ctx.lineTo(
         gc * BLOCK,
         ROWS * BLOCK
       );
 
+
       ctx.stroke();
 
     }
 
 
-    // 横線
     for (
       var gr = 0;
       gr <= ROWS;
@@ -1933,22 +2874,27 @@
 
       ctx.beginPath();
 
+
       ctx.moveTo(
         0,
         gr * BLOCK
       );
+
 
       ctx.lineTo(
         COLS * BLOCK,
         gr * BLOCK
       );
 
+
       ctx.stroke();
 
     }
 
 
-    // 固定ブロック
+    /*
+     * 固定ブロック
+     */
     for (
       var r = 0;
       r < ROWS;
@@ -1978,7 +2924,9 @@
     }
 
 
-    // 操作中ミノ
+    /*
+     * 操作中ミノ
+     */
     if (
       state.active
     ) {
@@ -2018,17 +2966,22 @@
     }
 
 
-    // ストック
+    /*
+     * ストック
+     */
     document
       .getElementById(
         "stockCountEl"
       )
       .innerHTML =
+
         state.stockCount +
         "<span class='unit'>個</span>";
 
 
-    // ミノ出現ボタン
+    /*
+     * ミノを出す
+     */
     var spawnBtn =
       document.getElementById(
         "spawnBtn"
@@ -2039,14 +2992,18 @@
       state.stockCount <= 0 ||
       !!state.active ||
       state.over ||
-      state.won;
+      state.won ||
+      state.paused;
 
 
-    // 操作ボタン
+    /*
+     * 操作ボタン
+     */
     var moveDisabled =
       !state.active ||
       state.over ||
-      state.won;
+      state.won ||
+      state.paused;
 
 
     document
@@ -2081,104 +3038,15 @@
         moveDisabled;
 
 
-    // -------------------------------------------------------
-    // 候補除外
-    // -------------------------------------------------------
-
-    var chipWrap =
-      document.getElementById(
-        "excludeChips"
-      );
+    /*
+     * 除外候補
+     */
+    renderExcludeChips();
 
 
-    chipWrap.innerHTML =
-      "";
-
-
-    var remaining =
-      OUTCOMES.length -
-      state.excluded.length;
-
-
-    OUTCOMES.forEach(
-      function (o) {
-
-        var chip =
-          document.createElement(
-            "button"
-          );
-
-
-        var isExcluded =
-          state.excluded.indexOf(
-            o
-          ) !== -1;
-
-
-        chip.className =
-          "chip" +
-          (
-            isExcluded
-              ? " chip-excluded"
-              : ""
-          );
-
-
-        chip.textContent =
-          isExcluded
-            ? OUTCOME_LABEL[o] +
-              "（解除）"
-            : OUTCOME_LABEL[o];
-
-
-        chip.type =
-          "button";
-
-
-        // 除外済みは解除可能
-        chip.disabled =
-          (
-            !isExcluded &&
-            (
-              state.stockCount <= 0 ||
-              remaining <= 1
-            )
-          ) ||
-          state.over ||
-          state.won ||
-          !!state.active;
-
-
-        if (
-          !isExcluded &&
-          o in COLORS
-        ) {
-
-          chip.style.borderColor =
-            COLORS[o];
-
-        }
-
-
-        chip.onclick =
-          function () {
-
-            toggleExclude(
-              o
-            );
-
-          };
-
-
-        chipWrap.appendChild(
-          chip
-        );
-
-      }
-    );
-
-
-    // 店
+    /*
+     * 店
+     */
     document
       .getElementById(
         "storeNameEl"
@@ -2187,21 +3055,32 @@
         state.storeName;
 
 
-    // 重複表示
+    /*
+     * 重複設定表示
+     */
     document
       .getElementById(
         "duplicateNote"
       )
       .textContent =
-        state.duplicateMode ===
-        "deny"
 
-          ? "重複：NG（同じ店・同じ名前は登録不可）"
+        "食べ物：" +
+        (
+          state.foodDuplicateMode === "deny"
+            ? "重複NG"
+            : "重複OK"
+        ) +
+        "　／　飲み物：" +
+        (
+          state.drinkDuplicateMode === "deny"
+            ? "重複NG"
+            : "重複OK"
+        );
 
-          : "重複：許可";
 
-
-    // 設定
+    /*
+     * 設定
+     */
     document
       .getElementById(
         "targetLinesInput"
@@ -2232,87 +3111,29 @@
 
     document
       .getElementById(
-        "duplicateModeInput"
+        "foodDuplicateModeInput"
       )
       .value =
-        state.duplicateMode;
+        state.foodDuplicateMode;
 
 
-    // 食事ログ
-    var logList =
-      document.getElementById(
-        "logList"
-      );
+    document
+      .getElementById(
+        "drinkDuplicateModeInput"
+      )
+      .value =
+        state.drinkDuplicateMode;
 
 
-    logList.innerHTML =
-      "";
+    /*
+     * ログ
+     */
+    renderLog();
 
 
-    state.log
-      .slice(0, 8)
-      .forEach(
-        function (entry) {
-
-          var li =
-            document.createElement(
-              "li"
-            );
-
-
-          var nameSpan =
-            document.createElement(
-              "span"
-            );
-
-
-          nameSpan.className =
-            "name";
-
-
-          nameSpan.textContent =
-            "🍢 " +
-            entry.name;
-
-
-          var metaSpan =
-            document.createElement(
-              "span"
-            );
-
-
-          metaSpan.className =
-            "meta";
-
-
-          metaSpan.textContent =
-            (
-              entry.store ||
-              "最初の店"
-            ) +
-            " / " +
-            entry.t;
-
-
-          li.appendChild(
-            nameSpan
-          );
-
-
-          li.appendChild(
-            metaSpan
-          );
-
-
-          logList.appendChild(
-            li
-          );
-
-        }
-      );
-
-
-    // 戦績
+    /*
+     * 戦績
+     */
     document
       .getElementById(
         "statLines"
@@ -2341,15 +3162,236 @@
         );
 
 
+    /*
+     * ギブアップ
+     */
     document
       .getElementById(
         "giveUpBtn"
       )
       .disabled =
         state.over ||
-        state.won;
+        state.won ||
+        state.paused;
+
   }
 
+
+  // =========================================================
+  // 除外チップ描画
+  // =========================================================
+
+  function renderExcludeChips() {
+
+    var wrap =
+      document.getElementById(
+        "excludeChips"
+      );
+
+
+    wrap.innerHTML =
+      "";
+
+
+    var remaining =
+      OUTCOMES.length -
+      state.excluded.length;
+
+
+    OUTCOMES.forEach(
+      function (outcome) {
+
+        var chip =
+          document.createElement(
+            "button"
+          );
+
+
+        var excluded =
+          state.excluded.indexOf(
+            outcome
+          ) !== -1;
+
+
+        chip.type =
+          "button";
+
+
+        chip.className =
+          "chip" +
+          (
+            excluded
+              ? " chip-excluded"
+              : ""
+          );
+
+
+        chip.textContent =
+          excluded
+            ? OUTCOME_LABEL[outcome] +
+              "（解除）"
+            : OUTCOME_LABEL[outcome];
+
+
+        chip.style.setProperty(
+          "--chip-color",
+          OUTCOME_COLOR[outcome]
+        );
+
+
+        /*
+         * 新規除外
+         */
+        chip.disabled =
+          (
+            !excluded &&
+            (
+              state.stockCount <= 0 ||
+              remaining <= 1
+            )
+          ) ||
+          state.over ||
+          state.won ||
+          state.paused ||
+          !!state.active;
+
+
+        /*
+         * 除外済みは解除できる
+         */
+        if (
+          excluded &&
+          !state.over &&
+          !state.won &&
+          !state.paused &&
+          !state.active
+        ) {
+
+          chip.disabled =
+            false;
+
+        }
+
+
+        chip.addEventListener(
+          "click",
+          function () {
+
+            toggleExclude(
+              outcome
+            );
+
+          }
+        );
+
+
+        wrap.appendChild(
+          chip
+        );
+
+      }
+    );
+
+  }
+
+
+  // =========================================================
+  // ログ描画
+  // =========================================================
+
+  function renderLog() {
+
+    var logList =
+      document.getElementById(
+        "logList"
+      );
+
+
+    logList.innerHTML =
+      "";
+
+
+    state.log
+      .slice(
+        0,
+        8
+      )
+      .forEach(
+        function (entry) {
+
+          var li =
+            document.createElement(
+              "li"
+            );
+
+
+          var name =
+            document.createElement(
+              "span"
+            );
+
+
+          name.className =
+            "name";
+
+
+          var icon =
+            entry.category === "drink"
+              ? "🍺 "
+              : "🍢 ";
+
+
+          name.textContent =
+            icon +
+            entry.name;
+
+
+          var meta =
+            document.createElement(
+              "span"
+            );
+
+
+          meta.className =
+            "meta";
+
+
+          meta.textContent =
+
+            (
+              entry.store ||
+              "最初の店"
+            ) +
+            " / " +
+            (
+              entry.t ||
+              ""
+            );
+
+
+          li.appendChild(
+            name
+          );
+
+
+          li.appendChild(
+            meta
+          );
+
+
+          logList.appendChild(
+            li
+          );
+
+        }
+      );
+
+  }
+
+
+  // =========================================================
+  // ブロック描画
+  // =========================================================
 
   function drawBlock(
     col,
@@ -2359,6 +3401,7 @@
 
     var x =
       col * BLOCK;
+
 
     var y =
       row * BLOCK;
@@ -2391,7 +3434,7 @@
 
 
   function setStatus(
-    msg
+    message
   ) {
 
     document
@@ -2399,7 +3442,7 @@
         "statusLine"
       )
       .textContent =
-        msg;
+        message;
 
   }
 
@@ -2408,9 +3451,45 @@
   // 経過時間
   // =========================================================
 
+  function updateElapsed() {
+
+    if (
+      state.paused ||
+      state.over ||
+      state.won
+    ) {
+
+      return;
+
+    }
+
+
+    var now =
+      Date.now();
+
+
+    var delta =
+      Math.max(
+        0,
+        now -
+        state.timerStartedAt
+      );
+
+
+    state.elapsedMs +=
+      delta;
+
+
+    state.timerStartedAt =
+      now;
+
+  }
+
+
   function getElapsedMs() {
 
     if (
+      state.paused ||
       state.over ||
       state.won
     ) {
@@ -2423,32 +3502,18 @@
     }
 
 
-    return Math.max(
-      0,
-      Date.now() -
-      state.startedAt
-    );
-  }
+    return (
 
+      state.elapsedMs +
 
-  function freezeElapsed() {
-
-    if (
-      !state.endedAt
-    ) {
-
-      state.endedAt =
-        Date.now();
-
-    }
-
-
-    state.elapsedMs =
       Math.max(
         0,
-        state.endedAt -
-        state.startedAt
-      );
+        Date.now() -
+        state.timerStartedAt
+      )
+
+    );
+
   }
 
 
@@ -2498,48 +3563,27 @@
       ":" +
       pad2(sec)
     );
+
   }
 
 
-  function pad2(n) {
+  function pad2(
+    number
+  ) {
 
-    return String(n)
-      .padStart(
-        2,
-        "0"
-      );
+    return String(
+      number
+    ).padStart(
+      2,
+      "0"
+    );
+
   }
 
 
   // =========================================================
   // 落下速度
   // =========================================================
-
-  function clampDropInterval(
-    v
-  ) {
-
-    v = parseInt(
-      v,
-      10
-    );
-
-
-    if (isNaN(v))
-      v = 700;
-
-
-    if (v < 150)
-      v = 150;
-
-
-    if (v > 1200)
-      v = 1200;
-
-
-    return v;
-  }
-
 
   function getDropSpeedLabel(
     interval
@@ -2588,16 +3632,17 @@
 
 
     return "とても速い";
+
   }
 
 
   // =========================================================
-  // 終了画面
+  // 終了表示
   // =========================================================
 
   function showEnd(
     won,
-    msg
+    message
   ) {
 
     var overlay =
@@ -2611,6 +3656,7 @@
         "endTitle"
       )
       .textContent =
+
         won
           ? "クリア成功！"
           : "ゲームオーバー";
@@ -2621,18 +3667,19 @@
         "endMessage"
       )
       .textContent =
+
         won
 
           ? (
-              "目標の" +
-              state.targetLines +
-              "ライン消去を達成しました。お会計、お願いします。"
-            )
+            "目標の" +
+            state.targetLines +
+            "ライン消去を達成しました。お会計、お願いします。"
+          )
 
           : (
-              msg ||
-              "戦線離脱です。"
-            );
+            message ||
+            "戦線離脱です。"
+          );
 
 
     document
@@ -2672,6 +3719,7 @@
       "aria-hidden",
       "false"
     );
+
   }
 
 
@@ -2687,26 +3735,29 @@
       );
 
 
-    if (!frame)
+    if (!frame) {
+
       return;
+
+    }
 
 
     window.requestAnimationFrame(
       function () {
 
+        /*
+         * フォーカス中の入力欄などを
+         * なるべく崩さない
+         */
         try {
 
           frame.scrollIntoView({
-
             behavior:
               "smooth",
-
             block:
               "center",
-
             inline:
               "nearest"
-
           });
 
         } catch (e) {
@@ -2717,57 +3768,79 @@
 
       }
     );
+
   }
 
 
   // =========================================================
-  // 落下ループ
+  // ゲームループ
   // =========================================================
 
   function loop(
-    ts
+    timestamp
   ) {
 
     if (!lastTime) {
 
       lastTime =
-        ts;
+        timestamp;
 
     }
 
 
-    var dt =
-      ts -
+    var delta =
+      timestamp -
       lastTime;
 
 
     lastTime =
-      ts;
+      timestamp;
 
 
+    /*
+     * paused中は落下させない
+     */
     if (
       !state.over &&
       !state.won &&
+      !state.paused &&
       state.active
     ) {
 
-      acc += dt;
+      /*
+       * 万一巨大なdeltaが来ても
+       * 一気に何十段も落とさない
+       */
+      delta =
+        Math.min(
+          delta,
+          100
+        );
+
+
+      acc +=
+        delta;
 
 
       var interval =
         Math.max(
           150,
           state.dropInterval -
-          state.linesCleared *
-          12
+          state.linesCleared * 12
         );
 
 
-      if (
-        acc > interval
+      while (
+        acc >= interval &&
+        state.active &&
+        !state.paused &&
+        !state.over &&
+        !state.won
       ) {
 
-        acc = 0;
+        acc -=
+          interval;
+
 
         softDrop();
 
@@ -2782,30 +3855,262 @@
     requestAnimationFrame(
       loop
     );
+
   }
 
 
   function renderTimerOnly() {
 
-    var el =
+    var element =
       document.getElementById(
         "statTime"
       );
 
 
-    if (el) {
+    if (!element) {
 
-      el.textContent =
-        formatElapsed(
-          getElapsedMs()
-        );
+      return;
 
     }
+
+
+    element.textContent =
+      formatElapsed(
+        getElapsedMs()
+      );
+
   }
 
 
   // =========================================================
-  // 入力
+  // スリープ・バックグラウンド対策
+  // =========================================================
+
+  document.addEventListener(
+    "visibilitychange",
+    function () {
+
+      if (!state) {
+        return;
+      }
+
+
+      /*
+       * 画面が消えた・別アプリへ移動した
+       */
+      if (document.hidden) {
+
+        if (
+          !state.paused &&
+          !state.over &&
+          !state.won
+        ) {
+
+          /*
+           * スリープ直前までの時間を確定
+           */
+          updateElapsed();
+
+
+          state.paused =
+            true;
+
+
+          /*
+           * 復帰時に過去時間分の
+           * ミノ落下が発生しないようにする
+           */
+          acc =
+            0;
+
+
+          lastTime =
+            0;
+
+
+          save();
+
+        }
+
+
+        return;
+
+      }
+
+
+      /*
+       * 復帰
+       */
+      if (
+        state.paused &&
+        !state.over &&
+        !state.won
+      ) {
+
+        state.paused =
+          false;
+
+
+        /*
+         * 復帰時刻を新しい
+         * 時間計測開始点にする
+         */
+        state.timerStartedAt =
+          Date.now();
+
+
+        /*
+         * スリープ時間を落下時間に
+         * 使わない
+         */
+        acc =
+          0;
+
+
+        lastTime =
+          0;
+
+
+        setStatus(
+          "ゲームを再開しました"
+        );
+
+
+        save();
+
+        render();
+
+      }
+
+    }
+  );
+
+
+  // =========================================================
+  // ページ離脱時保存
+  // =========================================================
+
+  window.addEventListener(
+    "pagehide",
+    function () {
+
+      if (!state) {
+        return;
+      }
+
+
+      if (
+        !state.paused &&
+        !state.over &&
+        !state.won
+      ) {
+
+        updateElapsed();
+
+      }
+
+
+      save();
+
+    }
+  );
+
+
+  window.addEventListener(
+    "beforeunload",
+    function () {
+
+      if (!state) {
+        return;
+      }
+
+
+      if (
+        !state.paused &&
+        !state.over &&
+        !state.won
+      ) {
+
+        updateElapsed();
+
+      }
+
+
+      save();
+
+    }
+  );
+
+
+  // =========================================================
+  // ダブルタップ拡大対策
+  // =========================================================
+
+  document.addEventListener(
+    "touchend",
+    function (event) {
+
+      var now =
+        Date.now();
+
+
+      /*
+       * 300ms以内の連続touchendを
+       * ダブルタップとして扱う
+       */
+      if (
+        now -
+        touchLastEnd
+        <=
+        300
+      ) {
+
+        var target =
+          event.target;
+
+
+        var tag =
+          target &&
+          target.tagName
+            ? target.tagName
+            : "";
+
+
+        var editable =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          (
+            target &&
+            target.isContentEditable
+          );
+
+
+        /*
+         * 入力欄では通常の
+         * タッチ操作を残す
+         */
+        if (!editable) {
+
+          event.preventDefault();
+
+        }
+
+      }
+
+
+      touchLastEnd =
+        now;
+
+    },
+    {
+      passive: false
+    }
+  );
+
+
+  // =========================================================
+  // 左
   // =========================================================
 
   document
@@ -2822,6 +4127,10 @@
     );
 
 
+  // =========================================================
+  // 右
+  // =========================================================
+
   document
     .getElementById(
       "btnRight"
@@ -2836,6 +4145,10 @@
     );
 
 
+  // =========================================================
+  // 回転
+  // =========================================================
+
   document
     .getElementById(
       "btnRotate"
@@ -2845,6 +4158,10 @@
       tryRotate
     );
 
+
+  // =========================================================
+  // ハードドロップ
+  // =========================================================
 
   document
     .getElementById(
@@ -2856,6 +4173,10 @@
     );
 
 
+  // =========================================================
+  // ミノを出す
+  // =========================================================
+
   document
     .getElementById(
       "spawnBtn"
@@ -2866,25 +4187,37 @@
     );
 
 
-  document
-    .getElementById(
-      "btnEat"
-    )
-    .addEventListener(
-      "click",
-      eatItem
-    );
-
+  // =========================================================
+  // 食べ物
+  // =========================================================
 
   document
     .getElementById(
-      "giveUpBtn"
+      "btnEatFood"
     )
     .addEventListener(
       "click",
-      giveUp
+      eatFood
     );
 
+
+  // =========================================================
+  // 飲み物
+  // =========================================================
+
+  document
+    .getElementById(
+      "btnEatDrink"
+    )
+    .addEventListener(
+      "click",
+      eatDrink
+    );
+
+
+  // =========================================================
+  // 店変更
+  // =========================================================
 
   document
     .getElementById(
@@ -2902,34 +4235,42 @@
 
   document.addEventListener(
     "keydown",
-    function (e) {
+    function (event) {
 
-      // ESCで自由選択を閉じる
+      /*
+       * 自由選択モーダル中
+       */
       if (
-        e.key === "Escape" &&
         document
           .getElementById(
             "chooseOverlay"
           )
           .classList
-          .contains(
-            "show"
-          )
+          .contains("show")
       ) {
 
-        document
-          .getElementById(
-            "chooseCancel"
-          )
-          .click();
+        if (
+          event.key === "Escape"
+        ) {
+
+          document
+            .getElementById(
+              "chooseCancel"
+            )
+            .click();
+
+        }
+
 
         return;
+
       }
 
 
       if (
         state.over ||
-        state.won
+        state.won ||
+        state.paused
       ) {
 
         return;
@@ -2938,34 +4279,39 @@
 
 
       if (
-        e.key === "ArrowLeft"
+        event.key ===
+        "ArrowLeft"
       ) {
 
         tryMove(-1);
 
       } else if (
-        e.key === "ArrowRight"
+        event.key ===
+        "ArrowRight"
       ) {
 
         tryMove(1);
 
       } else if (
-        e.key === "ArrowUp"
+        event.key ===
+        "ArrowUp"
       ) {
 
         tryRotate();
 
       } else if (
-        e.key === "ArrowDown"
+        event.key ===
+        "ArrowDown"
       ) {
 
         softDrop();
 
       } else if (
-        e.key === " "
+        event.key ===
+        " "
       ) {
 
-        e.preventDefault();
+        event.preventDefault();
 
         hardDrop();
 
@@ -2976,7 +4322,7 @@
 
 
   // =========================================================
-  // 目標ライン数
+  // 目標ライン変更
   // =========================================================
 
   document
@@ -2985,24 +4331,27 @@
     )
     .addEventListener(
       "change",
-      function (e) {
+      function (event) {
 
-        var v =
+        var value =
           clampTarget(
-            e.target.value
+            event.target.value
           );
 
 
         var changed =
-          v !==
+          value !==
           state.targetLines;
 
 
         state.targetLines =
-          v;
+          value;
 
 
-        // 開始直後なら盤面も再生成
+        /*
+         * ゲーム開始直後なら
+         * 詰み盤面も再構築
+         */
         if (
           changed &&
           state.linesCleared === 0 &&
@@ -3030,7 +4379,7 @@
 
 
   // =========================================================
-  // 落下速度
+  // 落下速度変更
   // =========================================================
 
   document
@@ -3039,11 +4388,11 @@
     )
     .addEventListener(
       "change",
-      function (e) {
+      function (event) {
 
         state.dropInterval =
           clampDropInterval(
-            e.target.value
+            event.target.value
           );
 
 
@@ -3067,78 +4416,49 @@
 
 
   // =========================================================
-  // 重複モード
+  // 食べ物重複設定
   // =========================================================
 
   document
     .getElementById(
-      "duplicateModeInput"
+      "foodDuplicateModeInput"
     )
     .addEventListener(
       "change",
-      function (e) {
+      function (event) {
 
-        state.duplicateMode =
-          e.target.value ===
+        state.foodDuplicateMode =
+          event.target.value ===
           "deny"
             ? "deny"
             : "allow";
 
 
+        /*
+         * 重複NGへ変更した場合、
+         * 現在の店のログを元に
+         * 判定対象を作り直す。
+         */
         if (
-          state.duplicateMode
+          state.foodDuplicateMode
           ===
           "deny"
         ) {
 
-          var currentStore =
-            state.storeName;
-
-
-          // 現在の店で既に登録されている
-          // 名前を重複判定へ反映
-          state.registeredItems =
-            state.log
-
-              .filter(
-                function (entry) {
-
-                  return (
-                    !entry.store ||
-                    entry.store ===
-                    currentStore
-                  );
-
-                }
-              )
-
-              .map(
-                function (entry) {
-
-                  return normalizeItemName(
-                    entry.name || ""
-                  );
-
-                }
-              )
-
-              .filter(Boolean);
-
-
-          state.registeredItems =
-            unique(
-              state.registeredItems
+          state.registeredFoods =
+            rebuildCurrentStoreItems(
+              "food"
             );
 
 
           setStatus(
-            "重複NGに変更しました。現在の店ですでに登録済みの名前は登録できません。"
+            "食べ物の重複をNGにしました。現在の店で登録済みの名前は登録できません。"
           );
 
         } else {
 
           setStatus(
-            "重複OKに変更しました。"
+            "食べ物の重複をOKにしました。"
           );
 
         }
@@ -3153,6 +4473,127 @@
 
 
   // =========================================================
+  // 飲み物重複設定
+  // =========================================================
+
+  document
+    .getElementById(
+      "drinkDuplicateModeInput"
+    )
+    .addEventListener(
+      "change",
+      function (event) {
+
+        state.drinkDuplicateMode =
+          event.target.value ===
+          "deny"
+            ? "deny"
+            : "allow";
+
+
+        /*
+         * 重複NGへ変更した場合、
+         * 現在の店のログを元に
+         * 判定対象を作り直す。
+         */
+        if (
+          state.drinkDuplicateMode
+          ===
+          "deny"
+        ) {
+
+          state.registeredDrinks =
+            rebuildCurrentStoreItems(
+              "drink"
+            );
+
+
+          setStatus(
+            "飲み物の重複をNGにしました。現在の店で登録済みの名前は登録できません。"
+          );
+
+        } else {
+
+          setStatus(
+            "飲み物の重複をOKにしました。"
+          );
+
+        }
+
+
+        save();
+
+        render();
+
+      }
+    );
+
+
+  // =========================================================
+  // 現在の店の登録済みアイテム
+  // =========================================================
+
+  function rebuildCurrentStoreItems(
+    category
+  ) {
+
+    var result = [];
+
+
+    state.log.forEach(
+      function (entry) {
+
+        if (
+          entry.category !==
+          category
+        ) {
+
+          return;
+
+        }
+
+
+        /*
+         * 現在の店だけ
+         */
+        if (
+          entry.store !==
+          state.storeName
+        ) {
+
+          return;
+
+        }
+
+
+        var normalized =
+          normalizeItemName(
+            entry.name || ""
+          );
+
+
+        if (
+          normalized &&
+          result.indexOf(
+            normalized
+          ) === -1
+        ) {
+
+          result.push(
+            normalized
+          );
+
+        }
+
+      }
+    );
+
+
+    return result;
+  }
+
+
+  // =========================================================
   // 自由選択キャンセル
   // =========================================================
 
@@ -3164,8 +4605,13 @@
       "click",
       function () {
 
-        // ミノを出した時点で
-        // ストック消費は確定している
+        /*
+         * 「ミノを出す」で
+         * ストック消費はすでに確定。
+         *
+         * キャンセルしても
+         * ストックは戻さない。
+         */
         chooseCallback =
           null;
 
@@ -3187,7 +4633,7 @@
 
 
   // =========================================================
-  // リセット
+  // 最初からやり直す
   // =========================================================
 
   document
@@ -3211,6 +4657,10 @@
       }
     );
 
+
+  // =========================================================
+  // 終了後再挑戦
+  // =========================================================
 
   document
     .getElementById(
@@ -3247,7 +4697,7 @@
 
 
   // =========================================================
-  // テーマ
+  // テーマ切替
   // =========================================================
 
   document
@@ -3262,14 +4712,14 @@
           document.documentElement;
 
 
-        var cur =
+        var current =
           root.getAttribute(
             "data-theme"
           );
 
 
         var next =
-          cur === "light"
+          current === "light"
             ? "dark"
             : "light";
 
@@ -3374,22 +4824,22 @@
 
     try {
 
-      var savedTheme =
+      var theme =
         localStorage.getItem(
           "izakaya_tetris_theme"
         );
 
 
       if (
-        savedTheme === "light" ||
-        savedTheme === "dark"
+        theme === "light" ||
+        theme === "dark"
       ) {
 
         document
           .documentElement
           .setAttribute(
             "data-theme",
-            savedTheme
+            theme
           );
 
       }
@@ -3417,26 +4867,13 @@
       freshState();
 
 
-    if (
-      !Array.isArray(
-        state.registeredItems
-      )
-    ) {
-
-      state.registeredItems =
-        [];
-
-    }
-
-
-    if (
-      !state.storeName
-    ) {
-
-      state.storeName =
-        "最初の店";
-
-    }
+    /*
+     * 念のためデータ整合性を補正
+     */
+    state.targetLines =
+      clampTarget(
+        state.targetLines
+      );
 
 
     state.dropInterval =
@@ -3446,13 +4883,61 @@
 
 
     if (
-      !state.duplicateMode
+      state.foodDuplicateMode !== "deny" &&
+      state.foodDuplicateMode !== "allow"
     ) {
 
-      state.duplicateMode =
+      state.foodDuplicateMode =
         "allow";
 
     }
+
+
+    if (
+      state.drinkDuplicateMode !== "deny" &&
+      state.drinkDuplicateMode !== "allow"
+    ) {
+
+      state.drinkDuplicateMode =
+        "allow";
+
+    }
+
+
+    if (
+      !Array.isArray(
+        state.registeredFoods
+      )
+    ) {
+
+      state.registeredFoods =
+        [];
+
+    }
+
+
+    if (
+      !Array.isArray(
+        state.registeredDrinks
+      )
+    ) {
+
+      state.registeredDrinks =
+        [];
+
+    }
+
+
+    /*
+     * 起動時は
+     * 現在時刻からタイマー再開
+     */
+    state.paused =
+      false;
+
+
+    state.timerStartedAt =
+      Date.now();
 
 
     render();
@@ -3461,6 +4946,7 @@
     requestAnimationFrame(
       loop
     );
+
   }
 
 
