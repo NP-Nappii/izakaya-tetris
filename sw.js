@@ -1,5 +1,4 @@
-const CACHE_NAME =
-  "izakaya-tetris-v5";
+const CACHE_NAME = "izakaya-tetris-v6";
 
 const ASSETS = [
   "./",
@@ -13,16 +12,14 @@ const ASSETS = [
 
 self.addEventListener(
   "install",
-  (event) => {
+  event => {
 
     event.waitUntil(
 
       caches
-        .open(
-          CACHE_NAME
-        )
+        .open(CACHE_NAME)
         .then(
-          (cache) =>
+          cache =>
             cache.addAll(
               ASSETS
             )
@@ -38,26 +35,26 @@ self.addEventListener(
 
 self.addEventListener(
   "activate",
-  (event) => {
+  event => {
 
     event.waitUntil(
 
       caches
         .keys()
         .then(
-          (keys) =>
+          keys =>
 
             Promise.all(
 
               keys
                 .filter(
-                  (key) =>
+                  key =>
                     key !==
                     CACHE_NAME
                 )
 
                 .map(
-                  (key) =>
+                  key =>
                     caches.delete(
                       key
                     )
@@ -76,7 +73,20 @@ self.addEventListener(
 
 self.addEventListener(
   "fetch",
-  (event) => {
+  event => {
+
+    /*
+     * GET以外は触らない
+     */
+    if (
+      event.request.method !==
+      "GET"
+    ) {
+
+      return;
+
+    }
+
 
     event.respondWith(
 
@@ -85,16 +95,56 @@ self.addEventListener(
           event.request
         )
         .then(
-          (cached) => {
+          cached => {
 
-            if (cached)
+            if (cached) {
+
               return cached;
+
+            }
+
 
             return fetch(
               event.request
-            ).catch(
-              () => cached
-            );
+            )
+              .then(
+                response => {
+
+                  if (
+                    response &&
+                    response.ok
+                  ) {
+
+                    var copy =
+                      response.clone();
+
+
+                    caches
+                      .open(
+                        CACHE_NAME
+                      )
+                      .then(
+                        cache => {
+
+                          cache.put(
+                            event.request,
+                            copy
+                          );
+
+                        }
+                      );
+
+                  }
+
+
+                  return response;
+
+                }
+              )
+              .catch(
+                () =>
+                  cached
+              );
 
           }
         )
