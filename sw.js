@@ -1,4 +1,6 @@
-const CACHE_NAME = "izakaya-tetris-v6";
+const CACHE_NAME =
+  "izakaya-tetris-v7";
+
 
 const ASSETS = [
   "./",
@@ -17,7 +19,9 @@ self.addEventListener(
     event.waitUntil(
 
       caches
-        .open(CACHE_NAME)
+        .open(
+          CACHE_NAME
+        )
         .then(
           cache =>
             cache.addAll(
@@ -26,6 +30,7 @@ self.addEventListener(
         )
 
     );
+
 
     self.skipWaiting();
 
@@ -61,9 +66,11 @@ self.addEventListener(
                 )
 
             )
+
         )
 
     );
+
 
     self.clients.claim();
 
@@ -78,6 +85,7 @@ self.addEventListener(
     /*
      * GET以外は触らない
      */
+
     if (
       event.request.method !==
       "GET"
@@ -143,7 +151,9 @@ self.addEventListener(
               )
               .catch(
                 () =>
-                  cached
+                  caches.match(
+                    "./index.html"
+                  )
               );
 
           }
