@@ -1,25 +1,21 @@
 (function () {
   "use strict";
 
-
-  // =========================================================
-  // 基本設定
-  // =========================================================
-
   var COLS = 10;
   var ROWS = 20;
   var BLOCK = 30;
 
-  var STORAGE_KEY =
-    "izakaya_tetris_save_v6";
+  var MAX_TARGET_LINES = 18;
+  var DEFAULT_DROP_INTERVAL = 700;
+
+  var STORAGE_KEY = "izakaya_tetris_save_v7";
 
   var LEGACY_KEYS = [
+    "izakaya_tetris_save_v6",
     "izakaya_tetris_save_v5",
     "izakaya_tetris_save_v4",
     "izakaya_tetris_save_v3"
   ];
-
-  var MAX_TARGET_LINES = 18;
 
 
   // =========================================================
@@ -79,22 +75,27 @@
 
 
   var TYPES =
-    Object.keys(SHAPES);
+    Object.keys(
+      SHAPES
+    );
 
 
-  /*
-   * ここは指定どおり
-   * アルファベット表記のまま
-   */
+  var OUTCOMES =
+    TYPES.concat([
+      "MISS",
+      "FREE"
+    ]);
+
+
   var OUTCOME_LABEL = {
 
-    I: "I",
-    O: "O",
-    T: "T",
-    S: "S",
-    Z: "Z",
-    J: "J",
-    L: "L",
+    I: "棒ミノ",
+    O: "四角ミノ",
+    T: "T字ミノ",
+    S: "S字ミノ",
+    Z: "Z字ミノ",
+    J: "J字ミノ",
+    L: "L字ミノ",
 
     MISS: "スカ",
 
@@ -103,55 +104,40 @@
   };
 
 
-  /*
-   * 除外チップの色
-   */
   var OUTCOME_COLOR = {
 
-    I: "#3fb7c9",
-    O: "#e8c14a",
-    T: "#b478d6",
-    S: "#5fbf7a",
-    Z: "#e0574c",
-    J: "#5b83e0",
-    L: "#e8942e",
+    I: COLORS.I,
+    O: COLORS.O,
+    T: COLORS.T,
+    S: COLORS.S,
+    Z: COLORS.Z,
+    J: COLORS.J,
+    L: COLORS.L,
 
     MISS: "#8d8172",
 
-    FREE: "#d3a24d"
+    FREE: "#d3ad5b"
 
   };
-
-
-  /*
-   * 7ミノ + スカ + 自由選択
-   */
-  var OUTCOMES =
-    TYPES.concat([
-      "MISS",
-      "FREE"
-    ]);
 
 
   var GARBAGE_COLOR =
     "#7d7466";
 
 
-  var DEFAULT_DROP_INTERVAL =
-    700;
-
-
   // =========================================================
-  // 状態
+  // グローバル
   // =========================================================
 
   var state = null;
 
-  var chooseCallback = null;
-
   var ctx = null;
 
   var choiceCtx = null;
+
+  var chooseCallback = null;
+
+  var selectedChoiceType = null;
 
   var lastTime = 0;
 
@@ -159,22 +145,20 @@
 
   var touchLastEnd = 0;
 
+  var lastActions = {};
+
 
   // =========================================================
   // 新規状態
   // =========================================================
 
-  function freshState() {
+  function freshState(base) {
 
-    var targetLines =
-      state &&
-      typeof state.targetLines === "number"
-        ? state.targetLines
-        : 3;
-
-
-    targetLines =
-      clampTarget(targetLines);
+    var target =
+      clampTarget(
+        base &&
+        base.targetLines
+      );
 
 
     var now =
@@ -185,85 +169,77 @@
 
       board:
         makeGarbageBoard(
-          targetLines
+          target
         ),
-
 
       active:
         null,
 
-
       stockCount:
         0,
-
 
       excluded:
         [],
 
-
       targetLines:
-        targetLines,
-
+        target,
 
       linesCleared:
         0,
 
-
       eatCount:
         0,
-
 
       log:
         [],
 
-
       over:
         false,
-
 
       won:
         false,
 
-
       startedAt:
         now,
-
 
       elapsedMs:
         0,
 
-
       endedAt:
         null,
 
-
       dropInterval:
-        DEFAULT_DROP_INTERVAL,
-
+        clampDropInterval(
+          base &&
+          base.dropInterval
+        ),
 
       foodDuplicateMode:
-        "allow",
-
+        base &&
+        base.foodDuplicateMode === "deny"
+          ? "deny"
+          : "allow",
 
       drinkDuplicateMode:
-        "allow",
-
+        base &&
+        base.drinkDuplicateMode === "deny"
+          ? "deny"
+          : "allow",
 
       registeredFoods:
         [],
 
-
       registeredDrinks:
         [],
 
-
       storeName:
-        "最初の店",
-
+        base &&
+        base.storeName
+          ? base.storeName
+          : "最初の店",
 
       paused:
         false,
-
 
       timerStartedAt:
         now
@@ -277,62 +253,58 @@
   // 数値
   // =========================================================
 
-  function clampTarget(v) {
+  function clampTarget(value) {
 
-    v =
+    var v =
       parseInt(
-        v,
+        value,
         10
       );
 
 
     if (isNaN(v)) {
+
       v = 3;
+
     }
 
 
-    if (v < 1) {
-      v = 1;
-    }
+    return Math.max(
+      1,
+      Math.min(
+        MAX_TARGET_LINES,
+        v
+      )
+    );
 
-
-    if (
-      v > MAX_TARGET_LINES
-    ) {
-      v = MAX_TARGET_LINES;
-    }
-
-
-    return v;
   }
 
 
-  function clampDropInterval(v) {
+  function clampDropInterval(value) {
 
-    v =
+    var v =
       parseInt(
-        v,
+        value,
         10
       );
 
 
     if (isNaN(v)) {
+
       v =
         DEFAULT_DROP_INTERVAL;
+
     }
 
 
-    if (v < 150) {
-      v = 150;
-    }
+    return Math.max(
+      150,
+      Math.min(
+        1200,
+        v
+      )
+    );
 
-
-    if (v > 1200) {
-      v = 1200;
-    }
-
-
-    return v;
   }
 
 
@@ -361,46 +333,40 @@
 
 
     return board;
+
   }
 
 
-  function makeGarbageBoard(
-    garbageRows
-  ) {
+  function makeGarbageBoard(rows) {
 
     var board =
       makeEmptyBoard();
 
 
-    garbageRows =
+    /*
+     * 最大18段。
+     * 上2段は常に空ける。
+     */
+
+    rows =
       Math.min(
         ROWS - 2,
         Math.max(
           1,
-          garbageRows
+          rows
         )
       );
 
 
-    /*
-     * 18ラインなら下18段が埋まり、
-     * 上2段が空く。
-     *
-     * これにより初手で
-     * いきなり出現できない状態を防ぐ。
-     */
     for (
-      var gr =
-        ROWS - garbageRows;
+      var r =
+        ROWS - rows;
 
-      gr < ROWS;
+      r < ROWS;
 
-      gr++
+      r++
     ) {
 
-      /*
-       * 2～3個の穴
-       */
       var gaps =
         2 +
         Math.floor(
@@ -445,7 +411,7 @@
           === -1
         ) {
 
-          board[gr][col] =
+          board[r][col] =
             GARBAGE_COLOR;
 
         }
@@ -456,6 +422,42 @@
 
 
     return board;
+
+  }
+
+
+  function validBoard(board) {
+
+    if (
+      !Array.isArray(board) ||
+      board.length !== ROWS
+    ) {
+
+      return false;
+
+    }
+
+
+    for (
+      var r = 0;
+      r < ROWS;
+      r++
+    ) {
+
+      if (
+        !Array.isArray(board[r]) ||
+        board[r].length !== COLS
+      ) {
+
+        return false;
+
+      }
+
+    }
+
+
+    return true;
+
   }
 
 
@@ -465,19 +467,32 @@
 
   function save() {
 
+    if (!state) {
+
+      return;
+
+    }
+
+
+    if (
+      !state.paused &&
+      !state.over &&
+      !state.won
+    ) {
+
+      updateElapsed();
+
+    }
+
+
     try {
 
-      window.localStorage.setItem(
+      localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify(
-          state
-        )
+        JSON.stringify(state)
       );
 
-    } catch (e) {
-      // localStorageが使えない環境でも
-      // ゲームそのものは継続
-    }
+    } catch (e) {}
 
   }
 
@@ -486,71 +501,19 @@
   // 読み込み
   // =========================================================
 
-  function load() {
-
-    var parsed =
-      tryLoad(
-        STORAGE_KEY
-      );
-
-
-    if (parsed) {
-
-      return normalizeLoadedState(
-        parsed
-      );
-
-    }
-
-
-    /*
-     * 旧バージョンからの移行
-     */
-    for (
-      var i = 0;
-      i < LEGACY_KEYS.length;
-      i++
-    ) {
-
-      parsed =
-        tryLoad(
-          LEGACY_KEYS[i]
-        );
-
-
-      if (parsed) {
-
-        return normalizeLoadedState(
-          parsed
-        );
-
-      }
-
-    }
-
-
-    return null;
-  }
-
-
   function tryLoad(key) {
 
     try {
 
       var raw =
-        window.localStorage.getItem(
+        localStorage.getItem(
           key
         );
 
 
-      if (!raw) {
-        return null;
-      }
-
-
-      return JSON.parse(
-        raw
-      );
+      return raw
+        ? JSON.parse(raw)
+        : null;
 
     } catch (e) {
 
@@ -561,13 +524,53 @@
   }
 
 
+  function load() {
+
+    var parsed =
+      tryLoad(
+        STORAGE_KEY
+      );
+
+
+    if (!parsed) {
+
+      for (
+        var i = 0;
+        i < LEGACY_KEYS.length;
+        i++
+      ) {
+
+        parsed =
+          tryLoad(
+            LEGACY_KEYS[i]
+          );
+
+
+        if (parsed) {
+
+          break;
+
+        }
+
+      }
+
+    }
+
+
+    return normalizeLoadedState(
+      parsed
+    );
+
+  }
+
+
   function normalizeLoadedState(
     parsed
   ) {
 
     if (
       !parsed ||
-      !Array.isArray(
+      !validBoard(
         parsed.board
       )
     ) {
@@ -583,221 +586,142 @@
       );
 
 
-    if (
-      !Array.isArray(
-        parsed.excluded
-      )
-    ) {
-
-      parsed.excluded = [];
-
-    }
-
-
-    if (
-      !Array.isArray(
-        parsed.log
-      )
-    ) {
-
-      parsed.log = [];
-
-    }
-
-
-    if (
-      typeof parsed.stockCount
-      !== "number"
-    ) {
-
-      parsed.stockCount = 0;
-
-    }
-
-
-    if (
-      typeof parsed.linesCleared
-      !== "number"
-    ) {
-
-      parsed.linesCleared = 0;
-
-    }
-
-
-    if (
-      typeof parsed.eatCount
-      !== "number"
-    ) {
-
-      parsed.eatCount = 0;
-
-    }
-
-
-    if (
-      typeof parsed.over
-      !== "boolean"
-    ) {
-
-      parsed.over = false;
-
-    }
-
-
-    if (
-      typeof parsed.won
-      !== "boolean"
-    ) {
-
-      parsed.won = false;
-
-    }
-
-
-    if (
-      typeof parsed.startedAt
-      !== "number"
-    ) {
-
-      parsed.startedAt =
-        Date.now();
-
-    }
-
-
-    if (
-      typeof parsed.elapsedMs
-      !== "number"
-    ) {
-
-      parsed.elapsedMs = 0;
-
-    }
-
-
-    if (
-      typeof parsed.endedAt
-      !== "number"
-    ) {
-
-      parsed.endedAt =
-        null;
-
-    }
-
-
     parsed.dropInterval =
       clampDropInterval(
         parsed.dropInterval
       );
 
 
-    if (
-      parsed.foodDuplicateMode
-      !== "deny" &&
-      parsed.foodDuplicateMode
-      !== "allow"
-    ) {
-
-      /*
-       * 旧版のduplicateModeを
-       * 食べ物へ移行
-       */
-      parsed.foodDuplicateMode =
-        parsed.duplicateMode === "deny"
-          ? "deny"
-          : "allow";
-
-    }
+    parsed.stockCount =
+      Math.max(
+        0,
+        Number(
+          parsed.stockCount
+        ) || 0
+      );
 
 
-    if (
-      parsed.drinkDuplicateMode
-      !== "deny" &&
-      parsed.drinkDuplicateMode
-      !== "allow"
-    ) {
-
-      /*
-       * 旧版では飲食共通設定だったため
-       * その設定を引き継ぐ
-       */
-      parsed.drinkDuplicateMode =
-        parsed.duplicateMode === "deny"
-          ? "deny"
-          : "allow";
-
-    }
+    parsed.linesCleared =
+      Math.max(
+        0,
+        Number(
+          parsed.linesCleared
+        ) || 0
+      );
 
 
-    if (
-      !Array.isArray(
+    parsed.eatCount =
+      Math.max(
+        0,
+        Number(
+          parsed.eatCount
+        ) || 0
+      );
+
+
+    parsed.elapsedMs =
+      Math.max(
+        0,
+        Number(
+          parsed.elapsedMs
+        ) || 0
+      );
+
+
+    parsed.log =
+      Array.isArray(
+        parsed.log
+      )
+        ? parsed.log
+        : [];
+
+
+    parsed.excluded =
+      Array.isArray(
+        parsed.excluded
+      )
+        ? parsed.excluded.filter(
+            function (x) {
+
+              return (
+                OUTCOMES.indexOf(x)
+                !== -1
+              );
+
+            }
+          )
+        : [];
+
+
+    parsed.over =
+      !!parsed.over;
+
+
+    parsed.won =
+      !!parsed.won;
+
+
+    parsed.endedAt =
+      typeof parsed.endedAt === "number"
+        ? parsed.endedAt
+        : null;
+
+
+    parsed.foodDuplicateMode =
+      parsed.foodDuplicateMode === "deny" ||
+      parsed.duplicateMode === "deny"
+        ? "deny"
+        : "allow";
+
+
+    parsed.drinkDuplicateMode =
+      parsed.drinkDuplicateMode === "deny" ||
+      parsed.duplicateMode === "deny"
+        ? "deny"
+        : "allow";
+
+
+    parsed.registeredFoods =
+      Array.isArray(
         parsed.registeredFoods
       )
-    ) {
-
-      parsed.registeredFoods = [];
-
-    }
+        ? parsed.registeredFoods
+        : [];
 
 
-    if (
-      !Array.isArray(
+    parsed.registeredDrinks =
+      Array.isArray(
         parsed.registeredDrinks
       )
-    ) {
-
-      parsed.registeredDrinks = [];
-
-    }
+        ? parsed.registeredDrinks
+        : [];
 
 
-    if (
-      typeof parsed.storeName
-      !== "string" ||
-      !parsed.storeName.trim()
-    ) {
-
-      parsed.storeName =
-        "最初の店";
-
-    }
+    parsed.storeName =
+      typeof parsed.storeName === "string" &&
+      parsed.storeName.trim()
+        ? parsed.storeName
+        : "最初の店";
 
 
-    if (
-      typeof parsed.paused
-      !== "boolean"
-    ) {
+    parsed.paused =
+      !!parsed.paused;
 
-      parsed.paused = false;
-
-    }
-
-
-    /*
-     * 保存データ読み込み直後は
-     * タイマーを現在時刻から再開。
-     *
-     * 前回終了時刻との差分を
-     * 勝手に加算しない。
-     */
-    parsed.paused = false;
 
     parsed.timerStartedAt =
       Date.now();
 
 
     /*
-     * 旧版データから
-     * 重複判定配列を再構築
+     * 旧データから補完
      */
+
     if (
       parsed.registeredFoods.length === 0
     ) {
 
       parsed.registeredFoods =
-        rebuildRegisteredItems(
+        rebuildItemsFromLog(
           parsed,
           "food"
         );
@@ -810,7 +734,7 @@
     ) {
 
       parsed.registeredDrinks =
-        rebuildRegisteredItems(
+        rebuildItemsFromLog(
           parsed,
           "drink"
         );
@@ -819,46 +743,55 @@
 
 
     /*
-     * activeが壊れている場合は解除
+     * 壊れたactiveを排除
      */
-    if (
-      parsed.active &&
-      (
+
+    if (parsed.active) {
+
+      if (
         !parsed.active.matrix ||
         !Array.isArray(
           parsed.active.matrix
-        )
-      )
-    ) {
+        ) ||
+        !parsed.active.matrix.length
+      ) {
 
-      parsed.active = null;
+        parsed.active = null;
+
+      }
 
     }
 
 
     return parsed;
+
   }
 
 
-  function rebuildRegisteredItems(
-    loaded,
+  function rebuildItemsFromLog(
+    data,
     category
   ) {
 
     var result = [];
 
 
-    if (!Array.isArray(loaded.log)) {
+    if (
+      !Array.isArray(
+        data.log
+      )
+    ) {
+
       return result;
+
     }
 
 
-    loaded.log.forEach(
+    data.log.forEach(
       function (entry) {
 
         if (
-          category === "food" &&
-          entry.category !== "food"
+          entry.category !== category
         ) {
 
           return;
@@ -867,8 +800,9 @@
 
 
         if (
-          category === "drink" &&
-          entry.category !== "drink"
+          (entry.store || "最初の店")
+          !==
+          data.storeName
         ) {
 
           return;
@@ -876,41 +810,18 @@
         }
 
 
-        /*
-         * 旧データでcategoryが
-         * 存在しない場合
-         */
-        if (
-          !entry.category &&
-          category === "food"
-        ) {
-
-          result.push(
-            normalizeItemName(
-              entry.name || ""
-            )
+        var name =
+          normalizeItemName(
+            entry.name || ""
           );
 
-        }
-
 
         if (
-          entry.category === category
+          name &&
+          result.indexOf(name) === -1
         ) {
 
-          if (
-            !entry.store ||
-            entry.store ===
-              loaded.storeName
-          ) {
-
-            result.push(
-              normalizeItemName(
-                entry.name || ""
-              )
-            );
-
-          }
+          result.push(name);
 
         }
 
@@ -918,31 +829,29 @@
     );
 
 
-    return unique(
-      result.filter(Boolean)
-    );
+    return result;
+
   }
 
 
   // =========================================================
-  // 配列
+  // 名前
   // =========================================================
 
-  function unique(arr) {
+  function normalizeItemName(name) {
 
-    return arr.filter(
-      function (
-        value,
-        index
-      ) {
+    return String(name)
 
-        return (
-          arr.indexOf(value)
-          === index
-        );
+      .normalize("NFKC")
 
-      }
-    );
+      .trim()
+
+      .toLowerCase()
+
+      .replace(
+        /\s+/g,
+        ""
+      );
 
   }
 
@@ -951,9 +860,9 @@
   // ミノ生成
   // =========================================================
 
-  function cloneMatrix(m) {
+  function cloneMatrix(matrix) {
 
-    return m.map(
+    return matrix.map(
       function (row) {
 
         return row.slice();
@@ -964,23 +873,11 @@
   }
 
 
-  function spawnPieceOfType(
-    type
-  ) {
+  function spawnPieceOfType(type) {
 
     var matrix =
       cloneMatrix(
         SHAPES[type]
-      );
-
-
-    var col =
-      Math.floor(
-        (
-          COLS -
-          matrix[0].length
-        ) /
-        2
       );
 
 
@@ -996,7 +893,12 @@
         0,
 
       col:
-        col,
+        Math.floor(
+          (
+            COLS -
+            matrix[0].length
+          ) / 2
+        ),
 
       color:
         COLORS[type]
@@ -1066,8 +968,41 @@
 
 
     return false;
+
   }
 
+
+  // =========================================================
+  // ゴースト位置
+  // =========================================================
+
+  function ghostRow(piece) {
+
+    var row =
+      piece.row;
+
+
+    while (
+      !collides(
+        piece.matrix,
+        row + 1,
+        piece.col
+      )
+    ) {
+
+      row++;
+
+    }
+
+
+    return row;
+
+  }
+
+
+  // =========================================================
+  // 回転
+  // =========================================================
 
   function rotateMatrix(m) {
 
@@ -1076,6 +1011,7 @@
 
     var cols =
       m[0].length;
+
 
     var result = [];
 
@@ -1092,7 +1028,9 @@
       for (
         var r =
           rows - 1;
+
         r >= 0;
+
         r--
       ) {
 
@@ -1111,6 +1049,47 @@
 
 
     return result;
+
+  }
+
+
+  // =========================================================
+  // 操作
+  // =========================================================
+
+  function tryMove(dx) {
+
+    if (
+      !state.active ||
+      state.paused
+    ) {
+
+      return;
+
+    }
+
+
+    var newCol =
+      state.active.col +
+      dx;
+
+
+    if (
+      !collides(
+        state.active.matrix,
+        state.active.row,
+        newCol
+      )
+    ) {
+
+      state.active.col =
+        newCol;
+
+      save();
+      render();
+
+    }
+
   }
 
 
@@ -1132,13 +1111,14 @@
       );
 
 
-    var kicks = [
-      0,
-      -1,
-      1,
-      -2,
-      2
-    ];
+    var kicks =
+      [
+        0,
+        -1,
+        1,
+        -2,
+        2
+      ];
 
 
     for (
@@ -1169,53 +1149,11 @@
 
 
         save();
-
         render();
 
         return;
 
       }
-
-    }
-
-  }
-
-
-  function tryMove(dx) {
-
-    if (
-      !state.active ||
-      state.paused
-    ) {
-
-      return;
-
-    }
-
-
-    var newCol =
-      state.active.col +
-      dx;
-
-
-    if (
-      !collides(
-        state.active.matrix,
-        state.active.row,
-        newCol
-      )
-    ) {
-
-      state.active.col =
-        newCol;
-
-
-      /*
-       * 操作直後にも保存
-       */
-      save();
-
-      render();
 
     }
 
@@ -1242,15 +1180,10 @@
       )
     ) {
 
-      state.active.row += 1;
+      state.active.row++;
 
 
-      /*
-       * スリープ直前などで
-       * 状態を失わないように保存
-       */
       save();
-
       render();
 
     } else {
@@ -1274,52 +1207,48 @@
     }
 
 
-    while (
-      !collides(
-        state.active.matrix,
-        state.active.row + 1,
-        state.active.col
-      )
-    ) {
-
-      state.active.row += 1;
-
-    }
+    state.active.row =
+      ghostRow(
+        state.active
+      );
 
 
     lockPiece();
+
   }
 
 
   // =========================================================
-  // ミノ固定
+  // 固定
   // =========================================================
 
   function lockPiece() {
 
-    var p =
+    var piece =
       state.active;
 
 
-    if (!p) {
+    if (!piece) {
+
       return;
+
     }
 
 
     for (
       var r = 0;
-      r < p.matrix.length;
+      r < piece.matrix.length;
       r++
     ) {
 
       for (
         var c = 0;
-        c < p.matrix[r].length;
+        c < piece.matrix[r].length;
         c++
       ) {
 
         if (
-          !p.matrix[r][c]
+          !piece.matrix[r][c]
         ) {
 
           continue;
@@ -1328,16 +1257,18 @@
 
 
         var br =
-          p.row + r;
+          piece.row + r;
 
         var bc =
-          p.col + c;
+          piece.col + c;
 
 
-        if (br < 0) {
+        if (
+          br < 0
+        ) {
 
           triggerGameOver(
-            "盤面から溢れました。もう戻れません。"
+            "盤面からミノが溢れました。ゲームオーバーです。"
           );
 
 
@@ -1347,7 +1278,7 @@
 
 
         state.board[br][bc] =
-          p.color;
+          piece.color;
 
       }
 
@@ -1359,7 +1290,6 @@
 
 
     clearLines();
-
 
     checkWin();
 
@@ -1382,11 +1312,7 @@
     }
 
 
-    /*
-     * ミノ固定後は必ず保存
-     */
     save();
-
     render();
 
   }
@@ -1398,7 +1324,8 @@
 
   function clearLines() {
 
-    var cleared = 0;
+    var cleared =
+      0;
 
 
     for (
@@ -1407,7 +1334,8 @@
       r--
     ) {
 
-      var full = true;
+      var full =
+        true;
 
 
       for (
@@ -1420,7 +1348,8 @@
           !state.board[r][c]
         ) {
 
-          full = false;
+          full =
+            false;
 
           break;
 
@@ -1453,7 +1382,7 @@
     }
 
 
-    if (cleared > 0) {
+    if (cleared) {
 
       state.linesCleared +=
         cleared;
@@ -1475,11 +1404,14 @@
   }
 
 
+  // =========================================================
+  // 勝利
+  // =========================================================
+
   function checkWin() {
 
     if (
-      state.linesCleared
-      >=
+      state.linesCleared >=
       state.targetLines &&
       !state.won
     ) {
@@ -1528,13 +1460,13 @@
       Date.now();
 
 
+    save();
+
+
     showEnd(
       false,
       message
     );
-
-
-    save();
 
   }
 
@@ -1547,7 +1479,8 @@
 
     if (
       state.over ||
-      state.won
+      state.won ||
+      state.paused
     ) {
 
       return;
@@ -1574,7 +1507,7 @@
 
 
   // =========================================================
-  // ストック候補除外
+  // 除外
   // =========================================================
 
   function toggleExclude(
@@ -1599,12 +1532,7 @@
       );
 
 
-    /*
-     * ===========================
-     * 除外済み → 取り消し
-     * ===========================
-     */
-
+    // 除外解除
     if (index !== -1) {
 
       state.excluded.splice(
@@ -1613,11 +1541,7 @@
       );
 
 
-      /*
-       * 除外に使ったストックを返却
-       */
-      state.stockCount +=
-        1;
+      state.stockCount++;
 
 
       setStatus(
@@ -1629,7 +1553,6 @@
 
 
       save();
-
       render();
 
       return;
@@ -1637,30 +1560,13 @@
     }
 
 
-    /*
-     * ===========================
-     * 新しく除外
-     * ===========================
-     */
-
     var remaining =
       OUTCOMES.length -
       state.excluded.length;
 
 
-    /*
-     * 少なくとも1候補は残す
-     */
     if (
-      remaining <= 1
-    ) {
-
-      return;
-
-    }
-
-
-    if (
+      remaining <= 1 ||
       state.stockCount <= 0
     ) {
 
@@ -1669,9 +1575,7 @@
     }
 
 
-    state.stockCount -=
-      1;
-
+    state.stockCount--;
 
     state.excluded.push(
       outcome
@@ -1687,14 +1591,13 @@
 
 
     save();
-
     render();
 
   }
 
 
   // =========================================================
-  // ミノ抽選
+  // 抽選
   // =========================================================
 
   function requestSpawn() {
@@ -1702,22 +1605,8 @@
     if (
       state.over ||
       state.won ||
-      state.paused
-    ) {
-
-      return;
-
-    }
-
-
-    if (state.active) {
-
-      return;
-
-    }
-
-
-    if (
+      state.paused ||
+      state.active ||
       state.stockCount <= 0
     ) {
 
@@ -1730,8 +1619,8 @@
      * 「ミノを出す」を押した瞬間に
      * ストック消費を確定
      */
-    state.stockCount -=
-      1;
+
+    state.stockCount--;
 
 
     var pool =
@@ -1749,11 +1638,11 @@
 
 
     /*
-     * 今回の抽選を開始したら
-     * 除外状態はリセット
+     * 今回の抽選開始時点で
+     * 除外状態をリセット
      */
-    state.excluded =
-      [];
+
+    state.excluded = [];
 
 
     var outcome =
@@ -1766,8 +1655,9 @@
 
 
     /*
-     * スカのときはスクロールしない
+     * スカだけスクロールしない
      */
+
     if (
       outcome !== "MISS"
     ) {
@@ -1778,8 +1668,9 @@
 
 
     /*
-     * ストック消費はこの時点で保存
+     * ストック消費を先に保存
      */
+
     save();
 
 
@@ -1794,12 +1685,7 @@
     outcome
   ) {
 
-    /*
-     * ===========================
-     * スカ
-     * ===========================
-     */
-
+    // スカ
     if (
       outcome === "MISS"
     ) {
@@ -1810,7 +1696,6 @@
 
 
       save();
-
       render();
 
       return;
@@ -1818,18 +1703,13 @@
     }
 
 
-    /*
-     * ===========================
-     * 自由選択
-     * ===========================
-     */
-
+    // 自由選択
     if (
       outcome === "FREE"
     ) {
 
       setStatus(
-        "自由選択：現在の盤面を確認してミノを選んでください。"
+        "自由選択：現在の盤面とミノの形を確認してください。"
       );
 
 
@@ -1845,7 +1725,6 @@
 
 
       save();
-
       render();
 
       return;
@@ -1853,12 +1732,7 @@
     }
 
 
-    /*
-     * ===========================
-     * 通常ミノ
-     * ===========================
-     */
-
+    // 通常
     trySpawnType(
       outcome
     );
@@ -1900,7 +1774,7 @@
     ) {
 
       triggerGameOver(
-        "盤面が完全に埋まりました。KO..."
+        "盤面が埋まっていてミノを出せません。ゲームオーバーです。"
       );
 
 
@@ -1913,10 +1787,7 @@
       piece;
 
 
-    /*
-     * 新しいミノが出た時点でも保存
-     */
-    save();
+    acc = 0;
 
 
     setStatus(
@@ -1925,41 +1796,21 @@
     );
 
 
+    save();
+
     render();
 
   }
 
 
   // =========================================================
-  // 名前正規化
+  // 食べ物・飲み物登録
   // =========================================================
 
-  function normalizeItemName(
-    name
+  function registerItem(
+    category
   ) {
 
-    return String(name)
-
-      .normalize("NFKC")
-
-      .trim()
-
-      .toLowerCase()
-
-      /*
-       * 全角・半角を整理したうえで
-       * 空白を無視
-       */
-      .replace(/\s+/g, "");
-  }
-
-
-  // =========================================================
-  // 食べ物登録
-  // =========================================================
-
-  function eatFood() {
-
     if (
       state.over ||
       state.won ||
@@ -1971,9 +1822,15 @@
     }
 
 
+    var inputId =
+      category === "food"
+        ? "foodName"
+        : "drinkName";
+
+
     var input =
       document.getElementById(
-        "foodName"
+        inputId
       );
 
 
@@ -1981,10 +1838,26 @@
       input.value.trim();
 
 
+    /*
+     * 空欄は禁止
+     */
+
     if (!name) {
 
-      name =
-        "食べ物";
+      setStatus(
+
+        category === "food"
+
+          ? "食べ物の名前を入力してください。"
+
+          : "飲み物の名前を入力してください。"
+
+      );
+
+
+      input.focus();
+
+      return;
 
     }
 
@@ -1995,55 +1868,61 @@
       );
 
 
+    var list =
+      category === "food"
+
+        ? state.registeredFoods
+
+        : state.registeredDrinks;
+
+
+    var mode =
+      category === "food"
+
+        ? state.foodDuplicateMode
+
+        : state.drinkDuplicateMode;
+
+
     /*
      * 重複NG
      */
+
     if (
-      state.foodDuplicateMode
-      ===
-      "deny" &&
-      state.registeredFoods.indexOf(
+      mode === "deny" &&
+      list.indexOf(
         normalized
       ) !== -1
     ) {
 
       setStatus(
-
         "「" +
         name +
-        "」は現在の店ですでに登録されています。食べ物は重複NGです。"
-
+        "」は現在の店ですでに登録されています。重複NGです。"
       );
 
-
-      render();
 
       return;
 
     }
 
 
-    /*
-     * ストック追加
-     */
-    state.stockCount +=
-      1;
+    state.stockCount++;
 
-
-    state.eatCount +=
-      1;
+    state.eatCount++;
 
 
     /*
-     * 重複判定用へ登録
+     * 重複判定用に登録
      */
+
     if (
-      state.registeredFoods.indexOf(
+      list.indexOf(
         normalized
       ) === -1
     ) {
 
-      state.registeredFoods.push(
+      list.push(
         normalized
       );
 
@@ -2053,13 +1932,14 @@
     /*
      * ログ
      */
+
     state.log.unshift({
 
       name:
         name,
 
       category:
-        "food",
+        category,
 
       store:
         state.storeName,
@@ -2080,7 +1960,7 @@
 
 
     if (
-      state.log.length > 30
+      state.log.length > 50
     ) {
 
       state.log.pop();
@@ -2102,168 +1982,13 @@
 
 
     save();
-
     render();
 
   }
 
 
   // =========================================================
-  // 飲み物登録
-  // =========================================================
-
-  function eatDrink() {
-
-    if (
-      state.over ||
-      state.won ||
-      state.paused
-    ) {
-
-      return;
-
-    }
-
-
-    var input =
-      document.getElementById(
-        "drinkName"
-      );
-
-
-    var name =
-      input.value.trim();
-
-
-    if (!name) {
-
-      name =
-        "飲み物";
-
-    }
-
-
-    var normalized =
-      normalizeItemName(
-        name
-      );
-
-
-    /*
-     * 重複NG
-     */
-    if (
-      state.drinkDuplicateMode
-      ===
-      "deny" &&
-      state.registeredDrinks.indexOf(
-        normalized
-      ) !== -1
-    ) {
-
-      setStatus(
-
-        "「" +
-        name +
-        "」は現在の店ですでに登録されています。飲み物は重複NGです。"
-
-      );
-
-
-      render();
-
-      return;
-
-    }
-
-
-    /*
-     * ストック追加
-     */
-    state.stockCount +=
-      1;
-
-
-    state.eatCount +=
-      1;
-
-
-    /*
-     * 重複判定用へ登録
-     */
-    if (
-      state.registeredDrinks.indexOf(
-        normalized
-      ) === -1
-    ) {
-
-      state.registeredDrinks.push(
-        normalized
-      );
-
-    }
-
-
-    /*
-     * ログ
-     */
-    state.log.unshift({
-
-      name:
-        name,
-
-      category:
-        "drink",
-
-      store:
-        state.storeName,
-
-      t:
-        new Date()
-          .toLocaleTimeString(
-            "ja-JP",
-            {
-              hour:
-                "2-digit",
-              minute:
-                "2-digit"
-            }
-          )
-
-    });
-
-
-    if (
-      state.log.length > 30
-    ) {
-
-      state.log.pop();
-
-    }
-
-
-    input.value =
-      "";
-
-
-    setStatus(
-
-      "「" +
-      name +
-      "」を登録しました。ストック＋1"
-
-    );
-
-
-    save();
-
-    render();
-
-  }
-
-
-  // =========================================================
-  // 店を変更
+  // 店変更
   // =========================================================
 
   function changeStore() {
@@ -2283,7 +2008,7 @@
       window.prompt(
 
         "変更先の店名を入力してください。\n" +
-        "店を変えると、食べ物・飲み物の重複判定がリセットされます。",
+        "店を変えると食べ物・飲み物の重複判定がリセットされます。",
 
         state.storeName
 
@@ -2309,6 +2034,7 @@
         "店名が空欄のため変更しませんでした。"
       );
 
+
       return;
 
     }
@@ -2323,22 +2049,21 @@
         "現在と同じ店です。重複判定はそのままです。"
       );
 
+
       return;
 
     }
 
 
-    /*
-     * 店変更
-     */
     state.storeName =
       nextName;
 
 
     /*
-     * 食べ物と飲み物の
-     * 重複判定を両方リセット
+     * 店変更で
+     * 食べ物・飲み物の判定をリセット
      */
+
     state.registeredFoods =
       [];
 
@@ -2351,20 +2076,19 @@
 
       "「" +
       nextName +
-      "」に店を変更しました。食べ物・飲み物の重複判定をリセットしました。"
+      "」に店を変更しました。重複判定をリセットしました。"
 
     );
 
 
     save();
-
     render();
 
   }
 
 
   // =========================================================
-  // 自由選択モーダル
+  // 自由選択
   // =========================================================
 
   function openChooseModal(
@@ -2387,19 +2111,20 @@
       callback;
 
 
+    selectedChoiceType =
+      null;
+
+
     grid.innerHTML =
       "";
 
 
-    /*
-     * 先に現在盤面を描画
-     */
-    renderChoiceBoardPreview();
+    document.getElementById(
+      "choiceSelected"
+    ).textContent =
+      "ミノを選択してください";
 
 
-    /*
-     * 7ミノ
-     */
     TYPES.forEach(
       function (type) {
 
@@ -2421,9 +2146,14 @@
           COLORS[type];
 
 
+        button.dataset.type =
+          type;
+
+
         /*
-         * 実際のミノ形プレビュー
+         * ミノの形
          */
+
         var preview =
           document.createElement(
             "div"
@@ -2515,22 +2245,9 @@
           "click",
           function () {
 
-            var cb =
-              chooseCallback;
-
-
-            chooseCallback =
-              null;
-
-
-            closeChooseModal();
-
-
-            if (cb) {
-
-              cb(type);
-
-            }
+            selectChoiceType(
+              type
+            );
 
           }
         );
@@ -2544,6 +2261,9 @@
     );
 
 
+    renderChoiceBoardPreview();
+
+
     overlay.classList.add(
       "show"
     );
@@ -2553,6 +2273,61 @@
       "aria-hidden",
       "false"
     );
+
+  }
+
+
+  function selectChoiceType(
+    type
+  ) {
+
+    selectedChoiceType =
+      type;
+
+
+    document
+      .querySelectorAll(
+        ".choice-piece"
+      )
+      .forEach(
+        function (button) {
+
+          button.classList.toggle(
+
+            "choice-selected",
+
+            button.dataset.type ===
+            type
+
+          );
+
+        }
+      );
+
+
+    document.getElementById(
+      "choiceSelected"
+    ).textContent =
+
+      OUTCOME_LABEL[type] +
+      "を選択中。盤面の仮置きを確認してください。";
+
+
+    var confirm =
+      document.getElementById(
+        "chooseConfirm"
+      );
+
+
+    if (confirm) {
+
+      confirm.disabled =
+        false;
+
+    }
+
+
+    renderChoiceBoardPreview();
 
   }
 
@@ -2575,11 +2350,63 @@
       "true"
     );
 
+
+    selectedChoiceType =
+      null;
+
+
+    var confirm =
+      document.getElementById(
+        "chooseConfirm"
+      );
+
+
+    if (confirm) {
+
+      confirm.disabled =
+        true;
+
+    }
+
+  }
+
+
+  function confirmChoice() {
+
+    if (
+      !selectedChoiceType ||
+      !chooseCallback
+    ) {
+
+      return;
+
+    }
+
+
+    var cb =
+      chooseCallback;
+
+
+    chooseCallback =
+      null;
+
+
+    var selected =
+      selectedChoiceType;
+
+
+    closeChooseModal();
+
+
+    cb(
+      selected
+    );
+
   }
 
 
   // =========================================================
-  // 自由選択の盤面プレビュー
+  // 自由選択の盤面
   // =========================================================
 
   function renderChoiceBoardPreview() {
@@ -2613,7 +2440,7 @@
       );
 
 
-    var emptyColor =
+    var empty =
       styles
         .getPropertyValue(
           "--board-empty"
@@ -2621,7 +2448,7 @@
         .trim();
 
 
-    var gridColor =
+    var grid =
       styles
         .getPropertyValue(
           "--board-grid"
@@ -2629,12 +2456,7 @@
         .trim();
 
 
-    /*
-     * 10列 × 20行
-     * 220 × 440
-     * = 22px
-     */
-    var previewBlock =
+    var b =
       22;
 
 
@@ -2647,7 +2469,7 @@
 
 
     choiceCtx.fillStyle =
-      emptyColor;
+      empty;
 
 
     choiceCtx.fillRect(
@@ -2658,16 +2480,15 @@
     );
 
 
-    /*
-     * グリッド
-     */
     choiceCtx.strokeStyle =
-      gridColor;
+      grid;
 
 
     choiceCtx.lineWidth =
       1;
 
+
+    // 縦グリッド
 
     for (
       var c = 0;
@@ -2679,13 +2500,13 @@
 
 
       choiceCtx.moveTo(
-        c * previewBlock,
+        c * b,
         0
       );
 
 
       choiceCtx.lineTo(
-        c * previewBlock,
+        c * b,
         canvas.height
       );
 
@@ -2694,6 +2515,8 @@
 
     }
 
+
+    // 横グリッド
 
     for (
       var r = 0;
@@ -2706,13 +2529,13 @@
 
       choiceCtx.moveTo(
         0,
-        r * previewBlock
+        r * b
       );
 
 
       choiceCtx.lineTo(
         canvas.width,
-        r * previewBlock
+        r * b
       );
 
 
@@ -2721,9 +2544,8 @@
     }
 
 
-    /*
-     * 現在の盤面
-     */
+    // 固定ブロック
+
     for (
       var br = 0;
       br < ROWS;
@@ -2750,10 +2572,49 @@
 
 
         choiceCtx.fillRect(
-          bc * previewBlock + 1,
-          br * previewBlock + 1,
-          previewBlock - 2,
-          previewBlock - 2
+          bc * b + 1,
+          br * b + 1,
+          b - 2,
+          b - 2
+        );
+
+      }
+
+    }
+
+
+    /*
+     * 選択中ミノの
+     * 仮置き位置
+     */
+
+    if (
+      selectedChoiceType
+    ) {
+
+      var piece =
+        spawnPieceOfType(
+          selectedChoiceType
+        );
+
+
+      if (
+        !collides(
+          piece.matrix,
+          piece.row,
+          piece.col
+        )
+      ) {
+
+        piece.row =
+          ghostRow(
+            piece
+          );
+
+
+        drawChoiceGhost(
+          piece,
+          b
         );
 
       }
@@ -2763,26 +2624,99 @@
   }
 
 
+  function drawChoiceGhost(
+    piece,
+    block
+  ) {
+
+    choiceCtx.save();
+
+
+    choiceCtx.globalAlpha =
+      0.45;
+
+
+    choiceCtx.strokeStyle =
+      piece.color;
+
+
+    choiceCtx.lineWidth =
+      2;
+
+
+    choiceCtx.setLineDash(
+      [4, 3]
+    );
+
+
+    for (
+      var r = 0;
+      r < piece.matrix.length;
+      r++
+    ) {
+
+      for (
+        var c = 0;
+        c < piece.matrix[r].length;
+        c++
+      ) {
+
+        if (
+          !piece.matrix[r][c]
+        ) {
+
+          continue;
+
+        }
+
+
+        var x =
+          (piece.col + c) *
+          block;
+
+
+        var y =
+          (piece.row + r) *
+          block;
+
+
+        choiceCtx.strokeRect(
+          x + 3,
+          y + 3,
+          block - 6,
+          block - 6
+        );
+
+      }
+
+    }
+
+
+    choiceCtx.restore();
+
+  }
+
+
   // =========================================================
-  // メイン描画
+  // 描画
   // =========================================================
 
   function render() {
 
+    var canvas =
+      document.getElementById(
+        "board"
+      );
+
+
+    if (!canvas) {
+
+      return;
+
+    }
+
+
     if (!ctx) {
-
-      var canvas =
-        document.getElementById(
-          "board"
-        );
-
-
-      if (!canvas) {
-
-        return;
-
-      }
-
 
       ctx =
         canvas.getContext(
@@ -2798,7 +2732,7 @@
       );
 
 
-    var emptyColor =
+    var empty =
       styles
         .getPropertyValue(
           "--board-empty"
@@ -2806,7 +2740,7 @@
         .trim();
 
 
-    var gridColor =
+    var grid =
       styles
         .getPropertyValue(
           "--board-grid"
@@ -2814,11 +2748,8 @@
         .trim();
 
 
-    /*
-     * 背景
-     */
     ctx.fillStyle =
-      emptyColor;
+      empty;
 
 
     ctx.fillRect(
@@ -2829,34 +2760,32 @@
     );
 
 
-    /*
-     * グリッド
-     */
     ctx.strokeStyle =
-      gridColor;
+      grid;
 
 
     ctx.lineWidth =
       1;
 
 
+    // 縦
     for (
-      var gc = 0;
-      gc <= COLS;
-      gc++
+      var c = 0;
+      c <= COLS;
+      c++
     ) {
 
       ctx.beginPath();
 
 
       ctx.moveTo(
-        gc * BLOCK,
+        c * BLOCK,
         0
       );
 
 
       ctx.lineTo(
-        gc * BLOCK,
+        c * BLOCK,
         ROWS * BLOCK
       );
 
@@ -2866,10 +2795,11 @@
     }
 
 
+    // 横
     for (
-      var gr = 0;
-      gr <= ROWS;
-      gr++
+      var r = 0;
+      r <= ROWS;
+      r++
     ) {
 
       ctx.beginPath();
@@ -2877,13 +2807,13 @@
 
       ctx.moveTo(
         0,
-        gr * BLOCK
+        r * BLOCK
       );
 
 
       ctx.lineTo(
         COLS * BLOCK,
-        gr * BLOCK
+        r * BLOCK
       );
 
 
@@ -2892,29 +2822,28 @@
     }
 
 
-    /*
-     * 固定ブロック
-     */
+    // 固定ブロック
+
     for (
-      var r = 0;
-      r < ROWS;
-      r++
+      var br = 0;
+      br < ROWS;
+      br++
     ) {
 
       for (
-        var c = 0;
-        c < COLS;
-        c++
+        var bc = 0;
+        bc < COLS;
+        bc++
       ) {
 
         if (
-          state.board[r][c]
+          state.board[br][bc]
         ) {
 
           drawBlock(
-            c,
-            r,
-            state.board[r][c]
+            bc,
+            br,
+            state.board[br][bc]
           );
 
         }
@@ -2924,71 +2853,40 @@
     }
 
 
-    /*
-     * 操作中ミノ
-     */
+    // ゴースト＋操作中
+
     if (
       state.active
     ) {
 
-      var p =
-        state.active;
+      drawGhost(
+        state.active
+      );
 
 
-      for (
-        var mr = 0;
-        mr < p.matrix.length;
-        mr++
-      ) {
-
-        for (
-          var mc = 0;
-          mc < p.matrix[mr].length;
-          mc++
-        ) {
-
-          if (
-            p.matrix[mr][mc]
-          ) {
-
-            drawBlock(
-              p.col + mc,
-              p.row + mr,
-              p.color
-            );
-
-          }
-
-        }
-
-      }
+      drawActive(
+        state.active
+      );
 
     }
 
 
-    /*
-     * ストック
-     */
-    document
-      .getElementById(
-        "stockCountEl"
-      )
-      .innerHTML =
+    // ストック
 
-        state.stockCount +
-        "<span class='unit'>個</span>";
+    document.getElementById(
+      "stockCountEl"
+    ).innerHTML =
+
+      state.stockCount +
+      "<span class='unit'>個</span>";
 
 
-    /*
-     * ミノを出す
-     */
-    var spawnBtn =
-      document.getElementById(
-        "spawnBtn"
-      );
+    // ミノを出す
 
+    document.getElementById(
+      "spawnBtn"
+    ).disabled =
 
-    spawnBtn.disabled =
       state.stockCount <= 0 ||
       !!state.active ||
       state.over ||
@@ -2996,402 +2894,187 @@
       state.paused;
 
 
-    /*
-     * 操作ボタン
-     */
-    var moveDisabled =
+    // 操作
+
+    var disabled =
       !state.active ||
       state.over ||
       state.won ||
       state.paused;
 
 
-    document
-      .getElementById(
-        "btnLeft"
-      )
-      .disabled =
-        moveDisabled;
+    document.getElementById(
+      "btnLeft"
+    ).disabled =
+      disabled;
 
 
-    document
-      .getElementById(
-        "btnRight"
-      )
-      .disabled =
-        moveDisabled;
+    document.getElementById(
+      "btnRight"
+    ).disabled =
+      disabled;
 
 
-    document
-      .getElementById(
-        "btnRotate"
-      )
-      .disabled =
-        moveDisabled;
+    document.getElementById(
+      "btnRotate"
+    ).disabled =
+      disabled;
 
 
-    document
-      .getElementById(
-        "btnDrop"
-      )
-      .disabled =
-        moveDisabled;
+    document.getElementById(
+      "btnDrop"
+    ).disabled =
+      disabled;
 
 
-    /*
-     * 除外候補
-     */
     renderExcludeChips();
 
-
-    /*
-     * 店
-     */
-    document
-      .getElementById(
-        "storeNameEl"
-      )
-      .textContent =
-        state.storeName;
-
-
-    /*
-     * 重複設定表示
-     */
-    document
-      .getElementById(
-        "duplicateNote"
-      )
-      .textContent =
-
-        "食べ物：" +
-        (
-          state.foodDuplicateMode === "deny"
-            ? "重複NG"
-            : "重複OK"
-        ) +
-        "　／　飲み物：" +
-        (
-          state.drinkDuplicateMode === "deny"
-            ? "重複NG"
-            : "重複OK"
-        );
-
-
-    /*
-     * 設定
-     */
-    document
-      .getElementById(
-        "targetLinesInput"
-      )
-      .value =
-        state.targetLines;
-
-
-    document
-      .getElementById(
-        "dropSpeedInput"
-      )
-      .value =
-        String(
-          state.dropInterval
-        );
-
-
-    document
-      .getElementById(
-        "dropSpeedLabel"
-      )
-      .textContent =
-        getDropSpeedLabel(
-          state.dropInterval
-        );
-
-
-    document
-      .getElementById(
-        "foodDuplicateModeInput"
-      )
-      .value =
-        state.foodDuplicateMode;
-
-
-    document
-      .getElementById(
-        "drinkDuplicateModeInput"
-      )
-      .value =
-        state.drinkDuplicateMode;
-
-
-    /*
-     * ログ
-     */
     renderLog();
 
 
-    /*
-     * 戦績
-     */
-    document
-      .getElementById(
-        "statLines"
-      )
-      .textContent =
-        state.linesCleared +
-        " / " +
-        state.targetLines;
+    // 店
+
+    document.getElementById(
+      "storeNameEl"
+    ).textContent =
+      state.storeName;
 
 
-    document
-      .getElementById(
-        "statEat"
-      )
-      .textContent =
-        state.eatCount;
+    // 重複設定
 
+    document.getElementById(
+      "duplicateNote"
+    ).textContent =
 
-    document
-      .getElementById(
-        "statTime"
-      )
-      .textContent =
-        formatElapsed(
-          getElapsedMs()
-        );
+      "食べ物：" +
+      (
+        state.foodDuplicateMode === "deny"
+          ? "重複NG"
+          : "重複OK"
+      ) +
 
+      "　／　飲み物：" +
 
-    /*
-     * ギブアップ
-     */
-    document
-      .getElementById(
-        "giveUpBtn"
-      )
-      .disabled =
-        state.over ||
-        state.won ||
-        state.paused;
-
-  }
-
-
-  // =========================================================
-  // 除外チップ描画
-  // =========================================================
-
-  function renderExcludeChips() {
-
-    var wrap =
-      document.getElementById(
-        "excludeChips"
+      (
+        state.drinkDuplicateMode === "deny"
+          ? "重複NG"
+          : "重複OK"
       );
 
 
-    wrap.innerHTML =
-      "";
+    // 設定
+
+    document.getElementById(
+      "targetLinesInput"
+    ).value =
+      state.targetLines;
 
 
-    var remaining =
-      OUTCOMES.length -
-      state.excluded.length;
+    document.getElementById(
+      "dropSpeedInput"
+    ).value =
+      String(
+        state.dropInterval
+      );
 
 
-    OUTCOMES.forEach(
-      function (outcome) {
-
-        var chip =
-          document.createElement(
-            "button"
-          );
-
-
-        var excluded =
-          state.excluded.indexOf(
-            outcome
-          ) !== -1;
+    document.getElementById(
+      "dropSpeedLabel"
+    ).textContent =
+      getDropSpeedLabel(
+        state.dropInterval
+      );
 
 
-        chip.type =
-          "button";
+    document.getElementById(
+      "foodDuplicateModeInput"
+    ).value =
+      state.foodDuplicateMode;
 
 
-        chip.className =
-          "chip" +
-          (
-            excluded
-              ? " chip-excluded"
-              : ""
-          );
+    document.getElementById(
+      "drinkDuplicateModeInput"
+    ).value =
+      state.drinkDuplicateMode;
 
 
-        chip.textContent =
-          excluded
-            ? OUTCOME_LABEL[outcome] +
-              "（解除）"
-            : OUTCOME_LABEL[outcome];
+    // 戦績
+
+    document.getElementById(
+      "statLines"
+    ).textContent =
+
+      state.linesCleared +
+      " / " +
+      state.targetLines;
 
 
-        chip.style.setProperty(
-          "--chip-color",
-          OUTCOME_COLOR[outcome]
-        );
+    document.getElementById(
+      "statEat"
+    ).textContent =
+      state.eatCount;
 
 
-        /*
-         * 新規除外
-         */
-        chip.disabled =
-          (
-            !excluded &&
-            (
-              state.stockCount <= 0 ||
-              remaining <= 1
-            )
-          ) ||
-          state.over ||
-          state.won ||
-          state.paused ||
-          !!state.active;
+    document.getElementById(
+      "statTime"
+    ).textContent =
+      formatElapsed(
+        getElapsedMs()
+      );
 
 
-        /*
-         * 除外済みは解除できる
-         */
-        if (
-          excluded &&
-          !state.over &&
-          !state.won &&
-          !state.paused &&
-          !state.active
-        ) {
+    // 一時停止表示
 
-          chip.disabled =
-            false;
-
-        }
+    var paused =
+      state.paused;
 
 
-        chip.addEventListener(
-          "click",
-          function () {
-
-            toggleExclude(
-              outcome
-            );
-
-          }
-        );
-
-
-        wrap.appendChild(
-          chip
-        );
-
-      }
+    document.getElementById(
+      "pausedBadge"
+    ).classList.toggle(
+      "show",
+      paused
     );
 
-  }
+
+    document.getElementById(
+      "pauseBtn"
+    ).textContent =
+      paused
+        ? "再開する"
+        : "一時停止";
 
 
-  // =========================================================
-  // ログ描画
-  // =========================================================
-
-  function renderLog() {
-
-    var logList =
-      document.getElementById(
-        "logList"
-      );
+    document.getElementById(
+      "pauseBtn"
+    ).disabled =
+      state.over ||
+      state.won;
 
 
-    logList.innerHTML =
-      "";
+    document.getElementById(
+      "giveUpBtn"
+    ).disabled =
+      state.over ||
+      state.won ||
+      state.paused;
 
 
-    state.log
-      .slice(
-        0,
-        8
-      )
-      .forEach(
-        function (entry) {
+    if (
+      document
+        .getElementById(
+          "chooseOverlay"
+        )
+        .classList
+        .contains("show")
+    ) {
 
-          var li =
-            document.createElement(
-              "li"
-            );
+      renderChoiceBoardPreview();
 
-
-          var name =
-            document.createElement(
-              "span"
-            );
-
-
-          name.className =
-            "name";
-
-
-          var icon =
-            entry.category === "drink"
-              ? "🍺 "
-              : "🍢 ";
-
-
-          name.textContent =
-            icon +
-            entry.name;
-
-
-          var meta =
-            document.createElement(
-              "span"
-            );
-
-
-          meta.className =
-            "meta";
-
-
-          meta.textContent =
-
-            (
-              entry.store ||
-              "最初の店"
-            ) +
-            " / " +
-            (
-              entry.t ||
-              ""
-            );
-
-
-          li.appendChild(
-            name
-          );
-
-
-          li.appendChild(
-            meta
-          );
-
-
-          logList.appendChild(
-            li
-          );
-
-        }
-      );
+    }
 
   }
 
-
-  // =========================================================
-  // ブロック描画
-  // =========================================================
 
   function drawBlock(
     col,
@@ -3433,27 +3116,352 @@
   }
 
 
-  function setStatus(
-    message
+  function drawActive(
+    piece
   ) {
 
-    document
-      .getElementById(
-        "statusLine"
-      )
-      .textContent =
-        message;
+    for (
+      var r = 0;
+      r < piece.matrix.length;
+      r++
+    ) {
+
+      for (
+        var c = 0;
+        c < piece.matrix[r].length;
+        c++
+      ) {
+
+        if (
+          piece.matrix[r][c] &&
+          piece.row + r >= 0
+        ) {
+
+          drawBlock(
+            piece.col + c,
+            piece.row + r,
+            piece.color
+          );
+
+        }
+
+      }
+
+    }
+
+  }
+
+
+  function drawGhost(
+    piece
+  ) {
+
+    var row =
+      ghostRow(
+        piece
+      );
+
+
+    ctx.save();
+
+
+    ctx.globalAlpha =
+      0.42;
+
+
+    ctx.strokeStyle =
+      piece.color;
+
+
+    ctx.lineWidth =
+      2;
+
+
+    ctx.setLineDash(
+      [5, 4]
+    );
+
+
+    for (
+      var r = 0;
+      r < piece.matrix.length;
+      r++
+    ) {
+
+      for (
+        var c = 0;
+        c < piece.matrix[r].length;
+        c++
+      ) {
+
+        if (
+          !piece.matrix[r][c]
+        ) {
+
+          continue;
+
+        }
+
+
+        var br =
+          row + r;
+
+
+        if (
+          br < 0
+        ) {
+
+          continue;
+
+        }
+
+
+        var x =
+          (piece.col + c) *
+          BLOCK;
+
+
+        var y =
+          br * BLOCK;
+
+
+        ctx.strokeRect(
+          x + 3,
+          y + 3,
+          BLOCK - 6,
+          BLOCK - 6
+        );
+
+      }
+
+    }
+
+
+    ctx.restore();
 
   }
 
 
   // =========================================================
-  // 経過時間
+  // 除外チップ描画
+  // =========================================================
+
+  function renderExcludeChips() {
+
+    var wrap =
+      document.getElementById(
+        "excludeChips"
+      );
+
+
+    wrap.innerHTML =
+      "";
+
+
+    var remaining =
+      OUTCOMES.length -
+      state.excluded.length;
+
+
+    OUTCOMES.forEach(
+      function (outcome) {
+
+        var button =
+          document.createElement(
+            "button"
+          );
+
+
+        var excluded =
+          state.excluded.indexOf(
+            outcome
+          ) !== -1;
+
+
+        button.type =
+          "button";
+
+
+        button.className =
+          "chip" +
+          (
+            excluded
+              ? " chip-excluded"
+              : ""
+          );
+
+
+        button.textContent =
+
+          excluded
+
+            ? OUTCOME_LABEL[outcome] +
+              "（解除）"
+
+            : OUTCOME_LABEL[outcome];
+
+
+        button.style.setProperty(
+          "--chip-color",
+          OUTCOME_COLOR[outcome]
+        );
+
+
+        button.disabled =
+
+          state.over ||
+          state.won ||
+          state.paused ||
+          !!state.active ||
+
+          (
+            !excluded &&
+            (
+              state.stockCount <= 0 ||
+              remaining <= 1
+            )
+          );
+
+
+        button.addEventListener(
+          "click",
+          function () {
+
+            toggleExclude(
+              outcome
+            );
+
+          }
+        );
+
+
+        wrap.appendChild(
+          button
+        );
+
+      }
+    );
+
+  }
+
+
+  // =========================================================
+  // ログ
+  // =========================================================
+
+  function renderLog() {
+
+    var list =
+      document.getElementById(
+        "logList"
+      );
+
+
+    list.innerHTML =
+      "";
+
+
+    state.log
+      .slice(
+        0,
+        10
+      )
+      .forEach(
+        function (entry) {
+
+          var li =
+            document.createElement(
+              "li"
+            );
+
+
+          var name =
+            document.createElement(
+              "span"
+            );
+
+
+          var meta =
+            document.createElement(
+              "span"
+            );
+
+
+          name.className =
+            "name";
+
+
+          meta.className =
+            "meta";
+
+
+          name.textContent =
+
+            (
+              entry.category === "drink"
+                ? "🍺 "
+                : "🍢 "
+            ) +
+            entry.name;
+
+
+          meta.textContent =
+
+            (
+              entry.store ||
+              "最初の店"
+            ) +
+            " / " +
+            (
+              entry.t ||
+              ""
+            );
+
+
+          li.appendChild(
+            name
+          );
+
+
+          li.appendChild(
+            meta
+          );
+
+
+          list.appendChild(
+            li
+          );
+
+        }
+      );
+
+  }
+
+
+  // =========================================================
+  // ステータス
+  // =========================================================
+
+  function setStatus(
+    message
+  ) {
+
+    document.getElementById(
+      "statusLine"
+    ).textContent =
+      message;
+
+  }
+
+
+  // =========================================================
+  // 時間
   // =========================================================
 
   function updateElapsed() {
 
     if (
+      !state ||
       state.paused ||
       state.over ||
       state.won
@@ -3468,16 +3476,13 @@
       Date.now();
 
 
-    var delta =
+    state.elapsedMs +=
+
       Math.max(
         0,
         now -
         state.timerStartedAt
       );
-
-
-    state.elapsedMs +=
-      delta;
 
 
     state.timerStartedAt =
@@ -3487,6 +3492,13 @@
 
 
   function getElapsedMs() {
+
+    if (!state) {
+
+      return 0;
+
+    }
+
 
     if (
       state.paused ||
@@ -3521,25 +3533,25 @@
     ms
   ) {
 
-    var totalSec =
+    var total =
       Math.floor(
         ms / 1000
       );
 
 
     var sec =
-      totalSec % 60;
+      total % 60;
 
 
     var min =
       Math.floor(
-        totalSec / 60
+        total / 60
       ) % 60;
 
 
     var hour =
       Math.floor(
-        totalSec / 3600
+        total / 3600
       );
 
 
@@ -3548,31 +3560,33 @@
     ) {
 
       return (
+
         pad2(hour) +
         ":" +
         pad2(min) +
         ":" +
         pad2(sec)
+
       );
 
     }
 
 
     return (
+
       pad2(min) +
       ":" +
       pad2(sec)
+
     );
 
   }
 
 
-  function pad2(
-    number
-  ) {
+  function pad2(n) {
 
     return String(
-      number
+      n
     ).padStart(
       2,
       "0"
@@ -3582,18 +3596,12 @@
 
 
   // =========================================================
-  // 落下速度
+  // 落下速度ラベル
   // =========================================================
 
   function getDropSpeedLabel(
     interval
   ) {
-
-    interval =
-      clampDropInterval(
-        interval
-      );
-
 
     if (
       interval >= 950
@@ -3637,253 +3645,82 @@
 
 
   // =========================================================
-  // 終了表示
+  // 一時停止
   // =========================================================
 
-  function showEnd(
-    won,
-    message
-  ) {
+  function togglePause() {
 
-    var overlay =
-      document.getElementById(
-        "endOverlay"
-      );
-
-
-    document
-      .getElementById(
-        "endTitle"
-      )
-      .textContent =
-
-        won
-          ? "クリア成功！"
-          : "ゲームオーバー";
-
-
-    document
-      .getElementById(
-        "endMessage"
-      )
-      .textContent =
-
-        won
-
-          ? (
-            "目標の" +
-            state.targetLines +
-            "ライン消去を達成しました。お会計、お願いします。"
-          )
-
-          : (
-            message ||
-            "戦線離脱です。"
-          );
-
-
-    document
-      .getElementById(
-        "endLines"
-      )
-      .textContent =
-        state.linesCleared +
-        " / " +
-        state.targetLines;
-
-
-    document
-      .getElementById(
-        "endEat"
-      )
-      .textContent =
-        state.eatCount;
-
-
-    document
-      .getElementById(
-        "endTime"
-      )
-      .textContent =
-        formatElapsed(
-          getElapsedMs()
-        );
-
-
-    overlay.classList.add(
-      "show"
-    );
-
-
-    overlay.setAttribute(
-      "aria-hidden",
-      "false"
-    );
-
-  }
-
-
-  // =========================================================
-  // 盤面スクロール
-  // =========================================================
-
-  function scrollBoardIntoView() {
-
-    var frame =
-      document.getElementById(
-        "boardFrame"
-      );
-
-
-    if (!frame) {
+    if (
+      state.over ||
+      state.won
+    ) {
 
       return;
 
     }
 
 
-    window.requestAnimationFrame(
-      function () {
+    if (
+      !state.paused
+    ) {
 
-        /*
-         * フォーカス中の入力欄などを
-         * なるべく崩さない
-         */
-        try {
-
-          frame.scrollIntoView({
-            behavior:
-              "smooth",
-            block:
-              "center",
-            inline:
-              "nearest"
-          });
-
-        } catch (e) {
-
-          frame.scrollIntoView();
-
-        }
-
-      }
-    );
-
-  }
+      updateElapsed();
 
 
-  // =========================================================
-  // ゲームループ
-  // =========================================================
+      state.paused =
+        true;
 
-  function loop(
-    timestamp
-  ) {
 
-    if (!lastTime) {
+      acc =
+        0;
+
 
       lastTime =
-        timestamp;
+        0;
+
+
+      setStatus(
+        "ゲームを一時停止しました"
+      );
+
+
+      save();
+      render();
+
+      return;
 
     }
 
 
-    var delta =
-      timestamp -
-      lastTime;
+    state.paused =
+      false;
+
+
+    state.timerStartedAt =
+      Date.now();
+
+
+    acc =
+      0;
 
 
     lastTime =
-      timestamp;
+      0;
 
 
-    /*
-     * paused中は落下させない
-     */
-    if (
-      !state.over &&
-      !state.won &&
-      !state.paused &&
-      state.active
-    ) {
-
-      /*
-       * 万一巨大なdeltaが来ても
-       * 一気に何十段も落とさない
-       */
-      delta =
-        Math.min(
-          delta,
-          100
-        );
-
-
-      acc +=
-        delta;
-
-
-      var interval =
-        Math.max(
-          150,
-          state.dropInterval -
-          state.linesCleared * 12
-        );
-
-
-      while (
-        acc >= interval &&
-        state.active &&
-        !state.paused &&
-        !state.over &&
-        !state.won
-      ) {
-
-        acc -=
-          interval;
-
-
-        softDrop();
-
-      }
-
-    }
-
-
-    renderTimerOnly();
-
-
-    requestAnimationFrame(
-      loop
+    setStatus(
+      "ゲームを再開しました"
     );
 
-  }
 
-
-  function renderTimerOnly() {
-
-    var element =
-      document.getElementById(
-        "statTime"
-      );
-
-
-    if (!element) {
-
-      return;
-
-    }
-
-
-    element.textContent =
-      formatElapsed(
-        getElapsedMs()
-      );
+    save();
+    render();
 
   }
 
 
   // =========================================================
-  // スリープ・バックグラウンド対策
+  // スリープ
   // =========================================================
 
   document.addEventListener(
@@ -3891,14 +3728,15 @@
     function () {
 
       if (!state) {
+
         return;
+
       }
 
 
-      /*
-       * 画面が消えた・別アプリへ移動した
-       */
-      if (document.hidden) {
+      if (
+        document.hidden
+      ) {
 
         if (
           !state.paused &&
@@ -3906,9 +3744,6 @@
           !state.won
         ) {
 
-          /*
-           * スリープ直前までの時間を確定
-           */
           updateElapsed();
 
 
@@ -3916,10 +3751,6 @@
             true;
 
 
-          /*
-           * 復帰時に過去時間分の
-           * ミノ落下が発生しないようにする
-           */
           acc =
             0;
 
@@ -3927,10 +3758,10 @@
           lastTime =
             0;
 
-
-          save();
-
         }
+
+
+        save();
 
 
         return;
@@ -3939,30 +3770,20 @@
 
 
       /*
-       * 復帰
+       * 復帰しても自動では再開しない
+       *
+       * 「再開する」を押すまで停止
        */
+
       if (
-        state.paused &&
-        !state.over &&
-        !state.won
+        state.paused
       ) {
 
-        state.paused =
-          false;
+        setStatus(
+          "一時停止中です。「再開する」でゲームを続けられます。"
+        );
 
 
-        /*
-         * 復帰時刻を新しい
-         * 時間計測開始点にする
-         */
-        state.timerStartedAt =
-          Date.now();
-
-
-        /*
-         * スリープ時間を落下時間に
-         * 使わない
-         */
         acc =
           0;
 
@@ -3970,13 +3791,6 @@
         lastTime =
           0;
 
-
-        setStatus(
-          "ゲームを再開しました"
-        );
-
-
-        save();
 
         render();
 
@@ -3987,7 +3801,7 @@
 
 
   // =========================================================
-  // ページ離脱時保存
+  // ページ離脱
   // =========================================================
 
   window.addEventListener(
@@ -3995,7 +3809,9 @@
     function () {
 
       if (!state) {
+
         return;
+
       }
 
 
@@ -4021,7 +3837,9 @@
     function () {
 
       if (!state) {
+
         return;
+
       }
 
 
@@ -4043,7 +3861,7 @@
 
 
   // =========================================================
-  // ダブルタップ拡大対策
+  // ダブルタップ拡大防止
   // =========================================================
 
   document.addEventListener(
@@ -4054,10 +3872,6 @@
         Date.now();
 
 
-      /*
-       * 300ms以内の連続touchendを
-       * ダブルタップとして扱う
-       */
       if (
         now -
         touchLastEnd
@@ -4077,6 +3891,7 @@
 
 
         var editable =
+
           tag === "INPUT" ||
           tag === "TEXTAREA" ||
           tag === "SELECT" ||
@@ -4086,11 +3901,9 @@
           );
 
 
-        /*
-         * 入力欄では通常の
-         * タッチ操作を残す
-         */
-        if (!editable) {
+        if (
+          !editable
+        ) {
 
           event.preventDefault();
 
@@ -4104,13 +3917,55 @@
 
     },
     {
-      passive: false
+      passive:
+        false
     }
   );
 
 
   // =========================================================
-  // 左
+  // 操作デバウンス
+  // =========================================================
+
+  function guarded(
+    key,
+    action,
+    interval
+  ) {
+
+    var now =
+      Date.now();
+
+
+    var delay =
+      interval || 280;
+
+
+    if (
+      (
+        lastActions[key] ||
+        0
+      ) +
+      delay >
+      now
+    ) {
+
+      return;
+
+    }
+
+
+    lastActions[key] =
+      now;
+
+
+    action();
+
+  }
+
+
+  // =========================================================
+  // イベント
   // =========================================================
 
   document
@@ -4121,15 +3976,18 @@
       "click",
       function () {
 
-        tryMove(-1);
+        guarded(
+          "left",
+          function () {
+
+            tryMove(-1);
+
+          }
+        );
 
       }
     );
 
-
-  // =========================================================
-  // 右
-  // =========================================================
 
   document
     .getElementById(
@@ -4139,15 +3997,18 @@
       "click",
       function () {
 
-        tryMove(1);
+        guarded(
+          "right",
+          function () {
+
+            tryMove(1);
+
+          }
+        );
 
       }
     );
 
-
-  // =========================================================
-  // 回転
-  // =========================================================
 
   document
     .getElementById(
@@ -4155,13 +4016,16 @@
     )
     .addEventListener(
       "click",
-      tryRotate
+      function () {
+
+        guarded(
+          "rotate",
+          tryRotate
+        );
+
+      }
     );
 
-
-  // =========================================================
-  // ハードドロップ
-  // =========================================================
 
   document
     .getElementById(
@@ -4169,13 +4033,16 @@
     )
     .addEventListener(
       "click",
-      hardDrop
+      function () {
+
+        guarded(
+          "drop",
+          hardDrop
+        );
+
+      }
     );
 
-
-  // =========================================================
-  // ミノを出す
-  // =========================================================
 
   document
     .getElementById(
@@ -4183,13 +4050,17 @@
     )
     .addEventListener(
       "click",
-      requestSpawn
+      function () {
+
+        guarded(
+          "spawn",
+          requestSpawn,
+          350
+        );
+
+      }
     );
 
-
-  // =========================================================
-  // 食べ物
-  // =========================================================
 
   document
     .getElementById(
@@ -4197,13 +4068,23 @@
     )
     .addEventListener(
       "click",
-      eatFood
+      function () {
+
+        guarded(
+          "eatFood",
+          function () {
+
+            registerItem(
+              "food"
+            );
+
+          },
+          350
+        );
+
+      }
     );
 
-
-  // =========================================================
-  // 飲み物
-  // =========================================================
 
   document
     .getElementById(
@@ -4211,13 +4092,23 @@
     )
     .addEventListener(
       "click",
-      eatDrink
+      function () {
+
+        guarded(
+          "eatDrink",
+          function () {
+
+            registerItem(
+              "drink"
+            );
+
+          },
+          350
+        );
+
+      }
     );
 
-
-  // =========================================================
-  // 店変更
-  // =========================================================
 
   document
     .getElementById(
@@ -4225,7 +4116,151 @@
     )
     .addEventListener(
       "click",
-      changeStore
+      function () {
+
+        guarded(
+          "store",
+          changeStore,
+          500
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "pauseBtn"
+    )
+    .addEventListener(
+      "click",
+      function () {
+
+        guarded(
+          "pause",
+          togglePause,
+          350
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "giveUpBtn"
+    )
+    .addEventListener(
+      "click",
+      function () {
+
+        guarded(
+          "giveup",
+          giveUp,
+          500
+        );
+
+      }
+    );
+
+
+  // =========================================================
+  // 自由選択キャンセル
+  // =========================================================
+
+  document
+    .getElementById(
+      "chooseCancel"
+    )
+    .addEventListener(
+      "click",
+      function () {
+
+        guarded(
+          "chooseCancel",
+          function () {
+
+            /*
+             * ストック消費は確定済み。
+             * キャンセルしても戻さない。
+             */
+
+            chooseCallback =
+              null;
+
+
+            closeChooseModal();
+
+
+            setStatus(
+              "自由選択をキャンセルしました。今回のストック消費は確定しています。"
+            );
+
+
+            save();
+            render();
+
+          },
+          350
+        );
+
+      }
+    );
+
+
+  // =========================================================
+  // 自由選択確定ボタン
+  // =========================================================
+
+  var confirmButton =
+    document.createElement(
+      "button"
+    );
+
+
+  confirmButton.className =
+    "modal-btn choice-confirm";
+
+
+  confirmButton.id =
+    "chooseConfirm";
+
+
+  confirmButton.type =
+    "button";
+
+
+  confirmButton.textContent =
+    "このミノを出す";
+
+
+  confirmButton.disabled =
+    true;
+
+
+  confirmButton.addEventListener(
+    "click",
+    function () {
+
+      guarded(
+        "chooseConfirm",
+        confirmChoice,
+        350
+      );
+
+    }
+  );
+
+
+  document
+    .querySelector(
+      ".choice-modal"
+    )
+    .insertBefore(
+      confirmButton,
+      document.getElementById(
+        "chooseCancel"
+      )
     );
 
 
@@ -4237,9 +4272,6 @@
     "keydown",
     function (event) {
 
-      /*
-       * 自由選択モーダル中
-       */
       if (
         document
           .getElementById(
@@ -4250,12 +4282,28 @@
       ) {
 
         if (
-          event.key === "Escape"
+          event.key ===
+          "Escape"
         ) {
 
           document
             .getElementById(
               "chooseCancel"
+            )
+            .click();
+
+        }
+
+
+        if (
+          event.key ===
+          "Enter" &&
+          selectedChoiceType
+        ) {
+
+          document
+            .getElementById(
+              "chooseConfirm"
             )
             .click();
 
@@ -4322,7 +4370,7 @@
 
 
   // =========================================================
-  // 目標ライン変更
+  // 目標ライン
   // =========================================================
 
   document
@@ -4349,9 +4397,10 @@
 
 
         /*
-         * ゲーム開始直後なら
-         * 詰み盤面も再構築
+         * ゲーム開始直後は
+         * 詰み盤面も再生成
          */
+
         if (
           changed &&
           state.linesCleared === 0 &&
@@ -4362,7 +4411,7 @@
 
           state.board =
             makeGarbageBoard(
-              state.targetLines
+              value
             );
 
         }
@@ -4371,7 +4420,6 @@
         checkWin();
 
         save();
-
         render();
 
       }
@@ -4379,7 +4427,7 @@
 
 
   // =========================================================
-  // 落下速度変更
+  // 落下速度
   // =========================================================
 
   document
@@ -4408,7 +4456,6 @@
 
 
         save();
-
         render();
 
       }
@@ -4416,7 +4463,7 @@
 
 
   // =========================================================
-  // 食べ物重複設定
+  // 食べ物重複
   // =========================================================
 
   document
@@ -4428,25 +4475,23 @@
       function (event) {
 
         state.foodDuplicateMode =
+
           event.target.value ===
           "deny"
+
             ? "deny"
+
             : "allow";
 
 
-        /*
-         * 重複NGへ変更した場合、
-         * 現在の店のログを元に
-         * 判定対象を作り直す。
-         */
         if (
-          state.foodDuplicateMode
-          ===
+          state.foodDuplicateMode ===
           "deny"
         ) {
 
           state.registeredFoods =
-            rebuildCurrentStoreItems(
+            rebuildItemsFromLog(
+              state,
               "food"
             );
 
@@ -4465,7 +4510,6 @@
 
 
         save();
-
         render();
 
       }
@@ -4473,7 +4517,7 @@
 
 
   // =========================================================
-  // 飲み物重複設定
+  // 飲み物重複
   // =========================================================
 
   document
@@ -4485,25 +4529,23 @@
       function (event) {
 
         state.drinkDuplicateMode =
+
           event.target.value ===
           "deny"
+
             ? "deny"
+
             : "allow";
 
 
-        /*
-         * 重複NGへ変更した場合、
-         * 現在の店のログを元に
-         * 判定対象を作り直す。
-         */
         if (
-          state.drinkDuplicateMode
-          ===
+          state.drinkDuplicateMode ===
           "deny"
         ) {
 
           state.registeredDrinks =
-            rebuildCurrentStoreItems(
+            rebuildItemsFromLog(
+              state,
               "drink"
             );
 
@@ -4522,7 +4564,6 @@
 
 
         save();
-
         render();
 
       }
@@ -4530,110 +4571,7 @@
 
 
   // =========================================================
-  // 現在の店の登録済みアイテム
-  // =========================================================
-
-  function rebuildCurrentStoreItems(
-    category
-  ) {
-
-    var result = [];
-
-
-    state.log.forEach(
-      function (entry) {
-
-        if (
-          entry.category !==
-          category
-        ) {
-
-          return;
-
-        }
-
-
-        /*
-         * 現在の店だけ
-         */
-        if (
-          entry.store !==
-          state.storeName
-        ) {
-
-          return;
-
-        }
-
-
-        var normalized =
-          normalizeItemName(
-            entry.name || ""
-          );
-
-
-        if (
-          normalized &&
-          result.indexOf(
-            normalized
-          ) === -1
-        ) {
-
-          result.push(
-            normalized
-          );
-
-        }
-
-      }
-    );
-
-
-    return result;
-  }
-
-
-  // =========================================================
-  // 自由選択キャンセル
-  // =========================================================
-
-  document
-    .getElementById(
-      "chooseCancel"
-    )
-    .addEventListener(
-      "click",
-      function () {
-
-        /*
-         * 「ミノを出す」で
-         * ストック消費はすでに確定。
-         *
-         * キャンセルしても
-         * ストックは戻さない。
-         */
-        chooseCallback =
-          null;
-
-
-        closeChooseModal();
-
-
-        setStatus(
-          "自由選択をキャンセルしました。今回のストック消費は確定しています。"
-        );
-
-
-        save();
-
-        render();
-
-      }
-    );
-
-
-  // =========================================================
-  // 最初からやり直す
+  // リセット
   // =========================================================
 
   document
@@ -4644,22 +4582,30 @@
       "click",
       function () {
 
-        if (
-          window.confirm(
-            "進行状況をリセットして最初からやり直しますか？"
-          )
-        ) {
+        guarded(
+          "reset",
+          function () {
 
-          startNew();
+            if (
+              window.confirm(
+                "進行状況をリセットして最初からやり直しますか？"
+              )
+            ) {
 
-        }
+              startNew();
+
+            }
+
+          },
+          500
+        );
 
       }
     );
 
 
   // =========================================================
-  // 終了後再挑戦
+  // 終了画面から再挑戦
   // =========================================================
 
   document
@@ -4670,34 +4616,40 @@
       "click",
       function () {
 
-        document
-          .getElementById(
-            "endOverlay"
-          )
-          .classList
-          .remove(
-            "show"
-          );
+        guarded(
+          "endRestart",
+          function () {
+
+            document
+              .getElementById(
+                "endOverlay"
+              )
+              .classList
+              .remove("show");
 
 
-        document
-          .getElementById(
-            "endOverlay"
-          )
-          .setAttribute(
-            "aria-hidden",
-            "true"
-          );
+            document
+              .getElementById(
+                "endOverlay"
+              )
+              .setAttribute(
+                "aria-hidden",
+                "true"
+              );
 
 
-        startNew();
+            startNew();
+
+          },
+          500
+        );
 
       }
     );
 
 
   // =========================================================
-  // テーマ切替
+  // テーマ
   // =========================================================
 
   document
@@ -4708,39 +4660,43 @@
       "click",
       function () {
 
-        var root =
-          document.documentElement;
+        guarded(
+          "theme",
+          function () {
+
+            var root =
+              document.documentElement;
 
 
-        var current =
-          root.getAttribute(
-            "data-theme"
-          );
+            var next =
+              root.getAttribute(
+                "data-theme"
+              ) === "light"
+                ? "dark"
+                : "light";
 
 
-        var next =
-          current === "light"
-            ? "dark"
-            : "light";
+            root.setAttribute(
+              "data-theme",
+              next
+            );
 
 
-        root.setAttribute(
-          "data-theme",
-          next
+            try {
+
+              localStorage.setItem(
+                "izakaya_tetris_theme",
+                next
+              );
+
+            } catch (e) {}
+
+
+            render();
+
+          },
+          350
         );
-
-
-        try {
-
-          localStorage.setItem(
-            "izakaya_tetris_theme",
-            next
-          );
-
-        } catch (e) {}
-
-
-        render();
 
       }
     );
@@ -4752,8 +4708,39 @@
 
   function startNew() {
 
+    /*
+     * 設定だけ保持
+     */
+
+    var settings = {
+
+      targetLines:
+        state.targetLines,
+
+      dropInterval:
+        state.dropInterval,
+
+      foodDuplicateMode:
+        state.foodDuplicateMode,
+
+      drinkDuplicateMode:
+        state.drinkDuplicateMode,
+
+      /*
+       * 新しいゲームでは
+       * 店を最初の店に戻す
+       */
+
+      storeName:
+        "最初の店"
+
+    };
+
+
     state =
-      freshState();
+      freshState(
+        settings
+      );
 
 
     lastTime =
@@ -4769,6 +4756,9 @@
     );
 
 
+    closeChooseModal();
+
+
     document
       .getElementById(
         "endOverlay"
@@ -4781,27 +4771,7 @@
 
     document
       .getElementById(
-        "chooseOverlay"
-      )
-      .classList
-      .remove(
-        "show"
-      );
-
-
-    document
-      .getElementById(
         "endOverlay"
-      )
-      .setAttribute(
-        "aria-hidden",
-        "true"
-      );
-
-
-    document
-      .getElementById(
-        "chooseOverlay"
       )
       .setAttribute(
         "aria-hidden",
@@ -4812,6 +4782,134 @@
     save();
 
     render();
+
+  }
+
+
+  // =========================================================
+  // スクロール
+  // =========================================================
+
+  function scrollBoardIntoView() {
+
+    var frame =
+      document.getElementById(
+        "boardFrame"
+      );
+
+
+    if (!frame) {
+
+      return;
+
+    }
+
+
+    requestAnimationFrame(
+      function () {
+
+        try {
+
+          frame.scrollIntoView({
+
+            behavior:
+              "smooth",
+
+            block:
+              "center",
+
+            inline:
+              "nearest"
+
+          });
+
+        } catch (e) {
+
+          frame.scrollIntoView();
+
+        }
+
+      }
+    );
+
+  }
+
+
+  // =========================================================
+  // 終了
+  // =========================================================
+
+  function showEnd(
+    won,
+    message
+  ) {
+
+    var overlay =
+      document.getElementById(
+        "endOverlay"
+      );
+
+
+    document.getElementById(
+      "endTitle"
+    ).textContent =
+
+      won
+        ? "クリア成功！"
+        : "ゲームオーバー";
+
+
+    document.getElementById(
+      "endMessage"
+    ).textContent =
+
+      won
+
+        ? (
+            "目標の" +
+            state.targetLines +
+            "ライン消去を達成しました。お会計、お願いします。"
+          )
+
+        : (
+            message ||
+            "戦線離脱です。"
+          );
+
+
+    document.getElementById(
+      "endLines"
+    ).textContent =
+
+      state.linesCleared +
+      " / " +
+      state.targetLines;
+
+
+    document.getElementById(
+      "endEat"
+    ).textContent =
+      state.eatCount;
+
+
+    document.getElementById(
+      "endTime"
+    ).textContent =
+
+      formatElapsed(
+        getElapsedMs()
+      );
+
+
+    overlay.classList.add(
+      "show"
+    );
+
+
+    overlay.setAttribute(
+      "aria-hidden",
+      "false"
+    );
 
   }
 
@@ -4850,6 +4948,104 @@
 
 
   // =========================================================
+  // ゲームループ
+  // =========================================================
+
+  function loop(
+    timestamp
+  ) {
+
+    if (!lastTime) {
+
+      lastTime =
+        timestamp;
+
+    }
+
+
+    /*
+     * 大きすぎるdeltaを
+     * 最大100msまでに制限
+     */
+
+    var delta =
+      Math.min(
+        100,
+        Math.max(
+          0,
+          timestamp -
+          lastTime
+        )
+      );
+
+
+    lastTime =
+      timestamp;
+
+
+    if (
+      !state.paused &&
+      !state.over &&
+      !state.won &&
+      state.active
+    ) {
+
+      acc +=
+        delta;
+
+
+      var interval =
+        Math.max(
+          150,
+          state.dropInterval -
+          state.linesCleared *
+          12
+        );
+
+
+      while (
+        acc >= interval &&
+        state.active &&
+        !state.paused &&
+        !state.over &&
+        !state.won
+      ) {
+
+        acc -=
+          interval;
+
+
+        softDrop();
+
+      }
+
+    }
+
+
+    var timerEl =
+      document.getElementById(
+        "statTime"
+      );
+
+
+    if (timerEl) {
+
+      timerEl.textContent =
+        formatElapsed(
+          getElapsedMs()
+        );
+
+    }
+
+
+    requestAnimationFrame(
+      loop
+    );
+
+  }
+
+
+  // =========================================================
   // 起動
   // =========================================================
 
@@ -4858,86 +5054,27 @@
     restoreTheme();
 
 
-    var loaded =
-      load();
-
-
     state =
-      loaded ||
+      load() ||
       freshState();
 
 
     /*
-     * 念のためデータ整合性を補正
+     * 保存時に一時停止状態だった場合、
+     * そのまま一時停止を保持。
+     *
+     * プレイ中だった場合だけ、
+     * ここから再開計測。
      */
-    state.targetLines =
-      clampTarget(
-        state.targetLines
-      );
-
-
-    state.dropInterval =
-      clampDropInterval(
-        state.dropInterval
-      );
-
 
     if (
-      state.foodDuplicateMode !== "deny" &&
-      state.foodDuplicateMode !== "allow"
+      !state.paused
     ) {
 
-      state.foodDuplicateMode =
-        "allow";
+      state.timerStartedAt =
+        Date.now();
 
     }
-
-
-    if (
-      state.drinkDuplicateMode !== "deny" &&
-      state.drinkDuplicateMode !== "allow"
-    ) {
-
-      state.drinkDuplicateMode =
-        "allow";
-
-    }
-
-
-    if (
-      !Array.isArray(
-        state.registeredFoods
-      )
-    ) {
-
-      state.registeredFoods =
-        [];
-
-    }
-
-
-    if (
-      !Array.isArray(
-        state.registeredDrinks
-      )
-    ) {
-
-      state.registeredDrinks =
-        [];
-
-    }
-
-
-    /*
-     * 起動時は
-     * 現在時刻からタイマー再開
-     */
-    state.paused =
-      false;
-
-
-    state.timerStartedAt =
-      Date.now();
 
 
     render();
