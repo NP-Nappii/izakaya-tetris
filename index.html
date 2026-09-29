@@ -14,6 +14,7 @@
 </head>
 
 <body>
+
 <div class="wrap">
 
 <header class="top">
@@ -29,7 +30,7 @@
     </h1>
 
     <p>
-      1品完食でストック＋1。ミノは7種＋スカ＋自由選択の9択からランダム。目標ライン数を消せばクリア。
+      1品完食でストック＋1。7種のミノ＋スカ＋自由選択の9択から抽選。目標ライン数を消せばクリア。
     </p>
 
   </div>
@@ -46,6 +47,7 @@
 
 <div class="layout">
 
+
   <!-- ==============================
        盤面
        ============================== -->
@@ -55,6 +57,12 @@
     <div
       class="board-frame"
       id="boardFrame">
+
+      <div
+        class="board-paused-badge"
+        id="pausedBadge">
+        一時停止中
+      </div>
 
       <canvas
         id="board"
@@ -102,6 +110,14 @@
     </div>
 
 
+    <button
+      class="pause-btn"
+      id="pauseBtn"
+      type="button">
+      一時停止
+    </button>
+
+
     <div
       class="status-line"
       id="statusLine">
@@ -119,6 +135,7 @@
 
 
     <!-- ストック -->
+
     <div class="card">
 
       <h2>ストック</h2>
@@ -142,7 +159,7 @@
 
 
       <div class="stock-hint">
-        「ミノを出す」を押した瞬間にストック－1が確定し、抽選結果が決まります。スカ以外は盤面まで自動スクロールします。
+        「ミノを出す」を押した瞬間にストック－1が確定します。スカ以外は盤面まで自動スクロールします。
       </div>
 
 
@@ -155,20 +172,20 @@
       <div
         class="stock-hint"
         style="margin-top:8px;">
-        抽選前に候補をタップすると除外できます（ストック－1）。除外済み候補をもう一度タップすると除外を取り消し、ストックが1戻ります。
+        抽選前に候補をタップすると除外（ストック－1）。除外済みをもう一度タップすると解除（ストック＋1）。
       </div>
 
     </div>
 
 
-    <!-- ==============================
-         間食記録
-         ============================== -->
+    <!-- 間食記録 -->
 
     <div class="card">
 
       <h2>間食を記録する</h2>
 
+
+      <!-- 現在の店 -->
 
       <div class="current-store-row">
 
@@ -205,12 +222,14 @@
           🍢 食べ物
         </div>
 
+
         <input
           type="text"
           id="foodName"
           placeholder="例：唐揚げ、焼き鳥"
           maxlength="24"
           autocomplete="off">
+
 
         <button
           class="btn food-btn"
@@ -230,12 +249,14 @@
           🍺 飲み物
         </div>
 
+
         <input
           type="text"
           id="drinkName"
           placeholder="例：レモンサワー、ビール"
           maxlength="24"
           autocomplete="off">
+
 
         <button
           class="btn drink-btn"
@@ -262,9 +283,7 @@
     </div>
 
 
-    <!-- ==============================
-         設定
-         ============================== -->
+    <!-- 設定 -->
 
     <div class="card">
 
@@ -276,6 +295,7 @@
         <span>
           目標ライン数
         </span>
+
 
         <input
           type="number"
@@ -404,15 +424,13 @@
 
 
       <p class="setting-note">
-        店を変えると、その店での「重複NG」の判定だけリセットされます。ゲーム盤面・ライン数・経過時間・ストックはそのままです。
+        店を変えると食べ物・飲み物の重複判定をリセットします。盤面・ライン数・経過時間・ストックは維持します。
       </p>
 
     </div>
 
 
-    <!-- ==============================
-         戦績
-         ============================== -->
+    <!-- 戦績 -->
 
     <div class="card">
 
@@ -420,32 +438,48 @@
 
 
       <div class="setting-row">
-        <span>消したライン</span>
+
+        <span>
+          消したライン
+        </span>
+
         <span id="statLines">
           0 / 3
         </span>
+
       </div>
 
 
       <div class="setting-row">
-        <span>間食した回数</span>
+
+        <span>
+          間食した回数
+        </span>
+
         <span id="statEat">
           0
         </span>
+
       </div>
 
 
       <div class="setting-row">
-        <span>経過時間</span>
+
+        <span>
+          経過時間
+        </span>
+
         <span id="statTime">
           00:00
         </span>
+
       </div>
 
     </div>
 
 
     <!-- ギブアップ -->
+
     <button
       class="giveup-btn"
       id="giveUpBtn"
@@ -455,6 +489,7 @@
 
 
     <!-- リセット -->
+
     <button
       class="reset-btn"
       id="resetBtn"
@@ -470,7 +505,7 @@
 
 
 <!-- ==============================
-     自由選択モーダル
+     自由選択
      ============================== -->
 
 <div
@@ -490,7 +525,7 @@
 
 
     <p>
-      現在のテトリスの譜面を確認して、出すミノを選んでください。
+      現在の盤面を確認し、入る場所を考えてからミノを選んでください。
     </p>
 
 
@@ -502,6 +537,13 @@
         height="440">
       </canvas>
 
+    </div>
+
+
+    <div
+      class="choice-selected"
+      id="choiceSelected">
+      ミノを選択してください
     </div>
 
 
@@ -524,7 +566,7 @@
 
 
 <!-- ==============================
-     終了モーダル
+     終了
      ============================== -->
 
 <div
