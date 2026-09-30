@@ -2,7 +2,7 @@
   "use strict";
 
   /* =========================================================
-     居酒屋テトリス v9
+     居酒屋テトリス v11
      - 詰み盤面固定
      - 目標ライン 1～18
      - ストックはミノ抽選時に即時消費
@@ -20,8 +20,10 @@
   var BLOCK = 30;
   var CHOICE_BLOCK = 22;
 
-  var STORAGE_KEY = "izakaya_tetris_save_v9";
+  var STORAGE_KEY = "izakaya_tetris_save_v11";
   var LEGACY_KEYS = [
+    "izakaya_tetris_save_v10",
+    "izakaya_tetris_save_v9",
     "izakaya_tetris_save_v8",
     "izakaya_tetris_save_v7",
     "izakaya_tetris_save_v6",
@@ -82,6 +84,23 @@
 
   var TYPES = Object.keys(SHAPES);
   var OUTCOMES = TYPES.concat(["MISS", "FREE"]);
+
+  /* 居酒屋でよくある定番メニュー。タップするとそのまま完食・注文記録。 */
+  var FOOD_PRESETS = [
+    "枝豆", "冷奴", "たこわさ", "キムチ", "ポテトサラダ",
+    "シーザーサラダ", "唐揚げ", "焼き鳥", "つくね", "ねぎま",
+    "砂肝", "手羽先", "豚バラ", "だし巻き玉子", "とん平焼き",
+    "フライドポテト", "イカ焼き", "ししゃも", "エイヒレ", "刺身盛り",
+    "おでん", "焼き餃子", "お好み焼き", "焼きそば", "もつ煮込み",
+    "牛すじ煮込み", "厚揚げ", "揚げ出し豆腐", "チキン南蛮", "たこ焼き"
+  ];
+
+  var DRINK_PRESETS = [
+    "生ビール", "瓶ビール", "ハイボール", "レモンサワー", "ライムサワー",
+    "グレープフルーツサワー", "梅サワー", "ウーロンハイ", "緑茶ハイ", "カシスオレンジ",
+    "カシスウーロン", "梅酒", "日本酒", "焼酎", "赤ワイン",
+    "白ワイン", "ウーロン茶", "緑茶", "コーラ", "ジンジャーエール"
+  ];
 
   var state = null;
   var chooseCallback = null;
@@ -820,12 +839,40 @@
      食べ物・飲み物・店
      ========================================================= */
 
-  function registerItem(category) {
+  function setupPresetButtons(containerId, category, presets) {
+    var wrap = byId(containerId);
+    if (!wrap) return;
+
+    wrap.innerHTML = "";
+
+    presets.forEach(function (name) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "preset-btn " + (category === "food" ? "food-preset" : "drink-preset");
+      button.textContent = name;
+      button.setAttribute("aria-label", name + "を記録");
+      button.addEventListener("click", function () {
+        guarded("preset-" + category + "-" + normalizeItemName(name), function () {
+          registerItem(category, name);
+        }, 320);
+      });
+      wrap.appendChild(button);
+    });
+  }
+
+  function renderPresetButtons() {
+    var disabled = state.over || state.won || state.paused || !!state.active;
+    document.querySelectorAll(".preset-btn").forEach(function (button) {
+      button.disabled = disabled;
+    });
+  }
+
+  function registerItem(category, presetName) {
     if (state.over || state.won || state.paused || state.active) return;
 
     var inputId = category === "food" ? "foodName" : "drinkName";
     var input = byId(inputId);
-    var name = input.value.trim();
+    var name = typeof presetName === "string" ? presetName.trim() : input.value.trim();
 
     if (!name) {
       setStatus(category === "food" ? "食べ物の名前を入力してください。" : "飲み物の名前を入力してください。");
@@ -1066,6 +1113,7 @@
 
     renderBoard();
     renderExcludeChips();
+    renderPresetButtons();
     renderLog();
 
     byId("stockCountEl").innerHTML = state.stockCount + "<span class='unit'>個</span>";
@@ -1179,7 +1227,7 @@
 
     hideEnd();
     closeChooseModal();
-    setStatus("間食してストックを貯めよう");
+    setStatus("完食してストックを貯めよう");
     lastTime = 0;
     acc = 0;
     save();
@@ -1247,6 +1295,9 @@
      ========================================================= */
 
   function installEvents() {
+    setupPresetButtons("foodPresetGrid", "food", FOOD_PRESETS);
+    setupPresetButtons("drinkPresetGrid", "drink", DRINK_PRESETS);
+
     // 横移動：タップの反応を速くし、長押しでも連続移動できるようにする。
     function setupMoveButton(id, dx, key) {
       var btn = byId(id);
