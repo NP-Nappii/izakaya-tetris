@@ -2,7 +2,7 @@
   "use strict";
 
   /* =========================================================
-     居酒屋テトリス v11
+     居酒屋テトリス v12
      - 詰み盤面固定
      - 目標ライン 1～18
      - ストックはミノ抽選時に即時消費
@@ -20,8 +20,9 @@
   var BLOCK = 30;
   var CHOICE_BLOCK = 22;
 
-  var STORAGE_KEY = "izakaya_tetris_save_v11";
+  var STORAGE_KEY = "izakaya_tetris_save_v12";
   var LEGACY_KEYS = [
+    "izakaya_tetris_save_v11",
     "izakaya_tetris_save_v10",
     "izakaya_tetris_save_v9",
     "izakaya_tetris_save_v8",
@@ -85,21 +86,30 @@
   var TYPES = Object.keys(SHAPES);
   var OUTCOMES = TYPES.concat(["MISS", "FREE"]);
 
-  /* 居酒屋でよくある定番メニュー。タップするとそのまま完食・注文記録。 */
+  /* 居酒屋でよくある定番メニュー。タップすると入力欄へセットする。 */
   var FOOD_PRESETS = [
-    "枝豆", "冷奴", "たこわさ", "キムチ", "ポテトサラダ",
-    "シーザーサラダ", "唐揚げ", "焼き鳥", "つくね", "ねぎま",
-    "砂肝", "手羽先", "豚バラ", "だし巻き玉子", "とん平焼き",
-    "フライドポテト", "イカ焼き", "ししゃも", "エイヒレ", "刺身盛り",
-    "おでん", "焼き餃子", "お好み焼き", "焼きそば", "もつ煮込み",
-    "牛すじ煮込み", "厚揚げ", "揚げ出し豆腐", "チキン南蛮", "たこ焼き"
+    "枝豆", "冷奴", "たこわさ", "塩辛", "キムチ", "漬物盛り合わせ",
+    "ポテトサラダ", "シーザーサラダ", "大根サラダ", "豆腐サラダ", "トマトスライス",
+    "唐揚げ", "手羽先", "フライドポテト", "コロッケ", "メンチカツ", "ハムカツ",
+    "ちくわ磯辺揚げ", "チーズフライ", "揚げ出し豆腐", "厚揚げ", "だし巻き玉子",
+    "とん平焼き", "お好み焼き", "たこ焼き", "焼き餃子", "水餃子", "焼き鳥",
+    "つくね", "ねぎま", "皮", "砂肝", "軟骨", "レバー", "手羽元", "豚バラ",
+    "ししゃも", "ホッケ", "イカ焼き", "エイヒレ", "刺身盛り", "まぐろ刺身",
+    "サーモン刺身", "たこ刺し", "おでん", "もつ煮込み", "牛すじ煮込み",
+    "豚キムチ", "焼きそば", "焼きうどん", "チャーハン", "おにぎり", "焼きおにぎり",
+    "お茶漬け", "雑炊", "鍋", "ちゃんぽん"
   ];
 
   var DRINK_PRESETS = [
-    "生ビール", "瓶ビール", "ハイボール", "レモンサワー", "ライムサワー",
-    "グレープフルーツサワー", "梅サワー", "ウーロンハイ", "緑茶ハイ", "カシスオレンジ",
-    "カシスウーロン", "梅酒", "日本酒", "焼酎", "赤ワイン",
-    "白ワイン", "ウーロン茶", "緑茶", "コーラ", "ジンジャーエール"
+    "生ビール", "瓶ビール", "ノンアルコールビール", "ハイボール", "コークハイ",
+    "ジンジャーハイ", "レモンサワー", "ライムサワー", "グレープフルーツサワー",
+    "梅サワー", "すだちサワー", "プレーンサワー", "ウーロンハイ", "緑茶ハイ",
+    "紅茶ハイ", "カシスオレンジ", "カシスウーロン", "ピーチウーロン", "ファジーネーブル",
+    "モスコミュール", "梅酒", "ゆず酒", "日本酒", "冷酒", "熱燗", "芋焼酎",
+    "麦焼酎", "米焼酎", "赤ワイン", "白ワイン", "スパークリングワイン",
+    "ウーロン茶", "緑茶", "ジャスミン茶", "コーラ", "ジンジャーエール",
+    "オレンジジュース", "グレープフルーツジュース", "カルピス", "カルピスソーダ",
+    "トマトジュース", "炭酸水", "ノンアルコールサワー"
   ];
 
   var state = null;
@@ -850,14 +860,31 @@
       button.type = "button";
       button.className = "preset-btn " + (category === "food" ? "food-preset" : "drink-preset");
       button.textContent = name;
-      button.setAttribute("aria-label", name + "を記録");
+      button.setAttribute("aria-label", name + "を入力欄にセット");
       button.addEventListener("click", function () {
         guarded("preset-" + category + "-" + normalizeItemName(name), function () {
-          registerItem(category, name);
-        }, 320);
+          selectPreset(category, name);
+        }, 220);
       });
       wrap.appendChild(button);
     });
+  }
+
+  function selectPreset(category, name) {
+    if (state.over || state.won || state.paused || state.active) return;
+
+    var inputId = category === "food" ? "foodName" : "drinkName";
+    var input = byId(inputId);
+    if (!input) return;
+
+    input.value = name;
+    input.focus();
+    try {
+      input.setSelectionRange(input.value.length, input.value.length);
+    } catch (e) { /* 一部ブラウザでは不要 */ }
+
+    setStatus((category === "food" ? "🍢 " : "🍺 ") + name + "を入力欄にセットしました。登録は「" +
+      (category === "food" ? "食べた（ストック＋1）" : "飲んだ（ストック＋1）") + "」を押してください。");
   }
 
   function renderPresetButtons() {
