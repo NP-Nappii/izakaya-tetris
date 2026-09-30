@@ -1247,8 +1247,68 @@
      ========================================================= */
 
   function installEvents() {
-    byId("btnLeft").addEventListener("click", function () { guarded("left", function () { tryMove(-1); }, 180); });
-    byId("btnRight").addEventListener("click", function () { guarded("right", function () { tryMove(1); }, 180); });
+    // 横移動：タップの反応を速くし、長押しでも連続移動できるようにする。
+    function setupMoveButton(id, dx, key) {
+      var btn = byId(id);
+      var repeatTimer = null;
+      var repeatInterval = null;
+      var suppressClick = false;
+
+      function stopRepeat() {
+        if (repeatTimer !== null) {
+          clearTimeout(repeatTimer);
+          repeatTimer = null;
+        }
+        if (repeatInterval !== null) {
+          clearInterval(repeatInterval);
+          repeatInterval = null;
+        }
+      }
+
+      function moveOnce() {
+        if (!btn.disabled) tryMove(dx);
+      }
+
+      btn.addEventListener("pointerdown", function (e) {
+        if (btn.disabled) return;
+        // タッチ操作ではブラウザ側のクリック生成を抑え、二重移動を防ぐ。
+        if (e.pointerType === "touch") {
+          e.preventDefault();
+          suppressClick = true;
+          window.setTimeout(function () { suppressClick = false; }, 450);
+        }
+
+        stopRepeat();
+        moveOnce();
+
+        // 最初の1回は即時、その後だけ少し待って高速連打。
+        repeatTimer = window.setTimeout(function () {
+          if (btn.disabled) return;
+          repeatInterval = window.setInterval(function () {
+            if (btn.disabled) {
+              stopRepeat();
+              return;
+            }
+            tryMove(dx);
+          }, 70);
+        }, 150);
+      });
+
+      ["pointerup", "pointercancel", "pointerleave"].forEach(function (eventName) {
+        btn.addEventListener(eventName, stopRepeat);
+      });
+
+      btn.addEventListener("click", function (e) {
+        if (suppressClick) {
+          e.preventDefault();
+          return;
+        }
+        guarded(key, moveOnce, 70);
+      });
+    }
+
+    setupMoveButton("btnLeft", -1, "left");
+    setupMoveButton("btnRight", 1, "right");
     byId("btnRotate").addEventListener("click", function () { guarded("rotate", tryRotate, 180); });
     byId("btnDrop").addEventListener("click", function () { guarded("drop", hardDrop, 280); });
     byId("spawnBtn").addEventListener("click", function () { guarded("spawn", requestSpawn, 350); });
