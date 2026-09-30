@@ -1,8 +1,8 @@
 /* =========================================================
-   居酒屋テトリス Service Worker v12
+   居酒屋テトリス Service Worker v13
    ========================================================= */
 
-const CACHE_NAME = "izakaya-tetris-v12";
+const CACHE_NAME = "izakaya-tetris-v13";
 const ASSETS = [
   "./",
   "./index.html",
