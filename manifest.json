@@ -1,7 +1,7 @@
 {
   "name": "居酒屋テトリス",
   "short_name": "居酒屋テトリス",
-  "description": "完食してストックを貯め、詰み盤面を消し切る大食い・飲みパズルゲーム",
+  "description": "間食してストックを貯め、詰み盤面を消し切る大食い・飲みパズルゲーム",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
