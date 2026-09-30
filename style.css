@@ -500,7 +500,7 @@ body::after {
 .category-form .btn { grid-column: 2; }
 
 
-/* 定番メニュー：タップだけで完食・飲み物の記録ができるクイック入力 */
+/* 定番メニュー：タップすると入力欄へセットするクイック入力 */
 .preset-menu {
   margin-top: 9px;
   border: 1px dashed var(--line);
@@ -536,6 +536,8 @@ body::after {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
+  max-height: 250px;
+  overflow-y: auto;
   padding: 0 7px 7px;
 }
 
@@ -811,6 +813,30 @@ body::after {
   color: var(--paper-dim);
 }
 
+.choice-modal {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.choice-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.choice-actions {
+  flex: 0 0 auto;
+  padding-top: 8px;
+  background: var(--bg-panel);
+}
+
+.choice-actions .modal-btn,
+.choice-actions .modal-secondary {
+  margin-top: 8px;
+}
+
 .choice-board-wrap {
   width: 220px;
   max-width: 100%;
@@ -869,10 +895,73 @@ body::after {
   line-height: 1;
 }
 
+/* 横画面：縦画面より盤面を大きくし、右側パネルとのバランスを取る */
+@media (orientation: landscape) and (min-width: 851px) {
+  .wrap {
+    width: min(1180px, calc(100% - 24px));
+  }
+
+  .layout {
+    grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .board-col {
+    position: sticky;
+    top: 10px;
+  }
+
+  .board-frame,
+  .controls {
+    max-width: 390px;
+  }
+
+  .board-frame {
+    padding: 10px;
+  }
+
+  .controls {
+    gap: 9px;
+  }
+
+  .ctrl-btn {
+    min-height: 50px;
+    font-size: 19px;
+  }
+
+  .status-line {
+    max-width: 390px;
+  }
+
+  .panel {
+    gap: 14px;
+  }
+}
+
 @media (max-width: 850px) {
   .layout { grid-template-columns: 1fr; }
   .board-col { position: static; }
   .board-frame, .controls { max-width: 430px; }
+}
+
+@media (orientation: landscape) and (max-width: 850px) {
+  .wrap {
+    width: min(100% - 14px, 1100px);
+  }
+
+  .board-frame,
+  .controls,
+  .status-line {
+    max-width: min(78vw, 500px);
+  }
+
+  .board-frame {
+    padding: 8px;
+  }
+
+  .ctrl-btn {
+    min-height: 46px;
+  }
 }
 
 @media (max-width: 560px) {
