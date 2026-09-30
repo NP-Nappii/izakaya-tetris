@@ -2,7 +2,7 @@
   "use strict";
 
   /* =========================================================
-     居酒屋テトリス v8
+     居酒屋テトリス v9
      - 詰み盤面固定
      - 目標ライン 1～18
      - ストックはミノ抽選時に即時消費
@@ -20,8 +20,9 @@
   var BLOCK = 30;
   var CHOICE_BLOCK = 22;
 
-  var STORAGE_KEY = "izakaya_tetris_save_v8";
+  var STORAGE_KEY = "izakaya_tetris_save_v9";
   var LEGACY_KEYS = [
+    "izakaya_tetris_save_v8",
     "izakaya_tetris_save_v7",
     "izakaya_tetris_save_v6",
     "izakaya_tetris_save_v5",
@@ -620,7 +621,7 @@
     if (state.over || state.won) return;
 
     selectedChoiceType = type;
-    byId("selectedChoiceText").textContent = type + "を選択中。下のボタンで確定してください。";
+    byId("selectedChoiceText").textContent = type + " を選択中。下のボタンで確定してください。";
     byId("chooseConfirm").disabled = false;
     renderChoiceGrid();
     renderChoiceBoardPreview();
@@ -731,17 +732,26 @@
      ========================================================= */
 
   function createMiniMino(type, excluded, isChip) {
-    if (type === "MISS") return createSpecialPreview("×", "スカ", excluded, isChip, type);
-    if (type === "FREE") return createSpecialPreview("★", "自由選択", excluded, isChip, type);
+    if (type === "MISS") {
+      return createSpecialPreview("×", "スカ", excluded, isChip, type);
+    }
+
+    if (type === "FREE") {
+      return createSpecialPreview("★", "自由選択", excluded, isChip, type);
+    }
 
     var matrix = SHAPES[type];
     var wrap = document.createElement("div");
     wrap.className = "mino-preview";
-    wrap.style.gridTemplateColumns = "repeat(" + matrix[0].length + ", auto)";
-    wrap.style.gridTemplateRows = "repeat(" + matrix.length + ", auto)";
+    wrap.style.gridTemplateColumns = "repeat(" + matrix[0].length + ", 8px)";
+    wrap.style.gridTemplateRows = "repeat(" + matrix.length + ", 8px)";
 
+    /* 0 のセルはDOMに作らず、実際にブロックがある場所だけ描画。
+       これにより除外時でも本来のミノ形状がはっきり見える。 */
     for (var r = 0; r < matrix.length; r++) {
       for (var c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+
         var cell = document.createElement("span");
         cell.className = "mino-cell";
         cell.style.gridColumn = String(c + 1);
@@ -759,7 +769,7 @@
     var wrap = document.createElement("div");
     wrap.className = "mino-preview special-preview";
     wrap.textContent = symbol;
-    wrap.style.color = excluded ? OUTCOME_COLOR[type] : "#fff";
+    wrap.style.color = OUTCOME_COLOR[type] || "#fff";
     return wrap;
   }
 
@@ -783,6 +793,7 @@
       chip.setAttribute("aria-label", excluded
         ? OUTCOME_LABEL[outcome] + "を除外中。タップで解除"
         : OUTCOME_LABEL[outcome] + "を次の抽選から除外");
+      chip.setAttribute("aria-pressed", excluded ? "true" : "false");
 
       chip.disabled = state.over || state.won || state.paused || !!state.active ||
         (!excluded && (state.stockCount <= 0 || remaining <= 1));
