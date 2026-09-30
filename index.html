@@ -74,7 +74,7 @@
           <button class="btn food-btn" id="btnEatFood" type="button">食べた（ストック＋1）</button>
         </div>
         <details class="preset-menu" open>
-          <summary>🍢 定番メニューから選ぶ（タップで即登録）</summary>
+          <summary>🍢 定番メニューから選ぶ（タップで入力欄にセット）</summary>
           <div class="preset-grid" id="foodPresetGrid"></div>
         </details>
 
@@ -84,7 +84,7 @@
           <button class="btn drink-btn" id="btnEatDrink" type="button">飲んだ（ストック＋1）</button>
         </div>
         <details class="preset-menu" open>
-          <summary>🍺 定番メニューから選ぶ（タップで即登録）</summary>
+          <summary>🍺 定番メニューから選ぶ（タップで入力欄にセット）</summary>
           <div class="preset-grid" id="drinkPresetGrid"></div>
         </details>
 
@@ -149,13 +149,17 @@
   <div class="modal choice-modal" role="dialog" aria-modal="true" aria-labelledby="chooseTitle">
     <h3 id="chooseTitle">自由選択</h3>
     <p>現在の譜面を見ながら、出すミノを選んでください。</p>
-    <div class="choice-board-wrap">
-      <canvas id="choiceBoardPreview" width="220" height="440"></canvas>
+    <div class="choice-content">
+      <div class="choice-board-wrap">
+        <canvas id="choiceBoardPreview" width="220" height="440"></canvas>
+      </div>
+      <div class="selected-choice-text" id="selectedChoiceText">ミノを選択してください</div>
+      <div class="choice-grid" id="choiceGrid"></div>
     </div>
-    <div class="selected-choice-text" id="selectedChoiceText">ミノを選択してください</div>
-    <div class="choice-grid" id="choiceGrid"></div>
-    <button class="modal-btn" id="chooseConfirm" type="button" disabled>このミノを出す</button>
-    <button class="modal-secondary" id="chooseCancel" type="button">キャンセル</button>
+    <div class="choice-actions">
+      <button class="modal-btn" id="chooseConfirm" type="button" disabled>このミノを出す</button>
+      <button class="modal-secondary" id="chooseCancel" type="button">キャンセル</button>
+    </div>
   </div>
 </div>
 
