@@ -38,7 +38,7 @@
         <button class="ctrl-btn" id="btnRight" type="button" aria-label="右へ">▶</button>
         <button class="ctrl-btn" id="btnDrop" type="button" aria-label="ハードドロップ">⤓</button>
       </div>
-      <div class="status-line" id="statusLine">間食してストックを貯めよう</div>
+      <div class="status-line" id="statusLine">完食してストックを貯めよう</div>
     </section>
 
     <section class="panel">
@@ -59,7 +59,7 @@
       </div>
 
       <div class="card">
-        <h2>間食を記録する</h2>
+        <h2>完食を記録する</h2>
         <div class="current-store-row">
           <div>
             <div class="store-caption">現在の店</div>
@@ -121,13 +121,13 @@
             <span class="switch-track"><span class="switch-thumb"></span></span>
           </label>
         </div>
-        <p class="setting-note">店を変えると食べ物・飲み物の重複判定だけリセットされます。盤面・ライン数・経過時間・ストック・間食回数はそのままです。</p>
+        <p class="setting-note">店を変えると食べ物・飲み物の重複判定だけリセットされます。盤面・ライン数・経過時間・ストック・完食回数はそのままです。</p>
       </div>
 
       <div class="card">
         <h2>戦績</h2>
         <div class="setting-row"><span>消したライン</span><span id="statLines">0 / 3</span></div>
-        <div class="setting-row"><span>間食した回数</span><span id="statEat">0</span></div>
+        <div class="setting-row"><span>完食した回数</span><span id="statEat">0</span></div>
         <div class="setting-row"><span>経過時間</span><span id="statTime">00:00</span></div>
       </div>
 
@@ -156,7 +156,7 @@
     <h3 id="endTitle">ゲームオーバー</h3>
     <p id="endMessage"></p>
     <div class="stat-row"><span>消したライン</span><span id="endLines">0 / 3</span></div>
-    <div class="stat-row"><span>間食した回数</span><span id="endEat">0</span></div>
+    <div class="stat-row"><span>完食した回数</span><span id="endEat">0</span></div>
     <div class="stat-row"><span>経過時間</span><span id="endTime">00:00</span></div>
     <button class="modal-btn" id="endRestart" type="button">もう一度挑戦する</button>
   </div>
