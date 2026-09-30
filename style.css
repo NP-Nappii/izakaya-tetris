@@ -814,36 +814,54 @@ body::after {
 }
 
 .choice-modal {
+  /* 自由選択はポップアップ内もページ側もスクロールさせない */
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: min(410px, calc(100vw - 24px));
+  max-height: calc(100dvh - 20px);
+  padding: 12px;
+}
+
+.choice-modal h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.choice-modal > p {
+  margin: 0 0 7px;
+  font-size: 11.5px;
+  line-height: 1.35;
 }
 
 .choice-content {
+  flex: 0 0 auto;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 2px;
+  overflow: hidden;
 }
 
 .choice-actions {
   flex: 0 0 auto;
-  padding-top: 8px;
+  padding-top: 4px;
   background: var(--bg-panel);
 }
 
 .choice-actions .modal-btn,
 .choice-actions .modal-secondary {
-  margin-top: 8px;
+  margin-top: 5px;
+  min-height: 40px;
+  padding: 7px 9px;
+  font-size: 13px;
 }
 
 .choice-board-wrap {
-  width: 220px;
+  width: 150px;
   max-width: 100%;
-  margin: 0 auto 10px;
-  padding: 6px;
+  margin: 0 auto 6px;
+  padding: 4px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--board-empty);
   overflow: hidden;
 }
@@ -852,36 +870,49 @@ body::after {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .selected-choice-text {
-  min-height: 22px;
+  min-height: 18px;
+  margin-bottom: 3px;
   color: var(--gold);
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 800;
+  line-height: 1.25;
 }
 
 .choice-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 10px 0 2px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 3px 0 0;
 }
 
 .choice-piece {
-  min-height: 88px;
-  padding: 8px 5px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 4px 2px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--board-empty);
   color: var(--paper);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 3px;
   cursor: pointer;
+}
+
+.choice-piece .mino-preview {
+  gap: 1px;
+}
+
+.choice-piece .mino-cell {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
 }
 
 .choice-piece.selected {
@@ -890,9 +921,84 @@ body::after {
 }
 
 .choice-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1;
+}
+
+/* 高さの低い端末でも全要素を画面内に収める */
+@media (max-height: 650px) {
+  .choice-modal {
+    padding: 9px;
+  }
+
+  .choice-modal > p {
+    margin-bottom: 4px;
+    font-size: 10.5px;
+  }
+
+  .choice-board-wrap {
+    width: 125px;
+    margin-bottom: 4px;
+  }
+
+  .selected-choice-text {
+    min-height: 16px;
+    font-size: 10.5px;
+  }
+
+  .choice-piece {
+    min-height: 55px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .choice-piece .mino-cell {
+    width: 5px;
+    height: 5px;
+  }
+
+  .choice-label {
+    font-size: 10px;
+  }
+
+  .choice-actions .modal-btn,
+  .choice-actions .modal-secondary {
+    min-height: 36px;
+    margin-top: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-height: 520px) {
+  .choice-modal {
+    width: min(390px, calc(100vw - 14px));
+    padding: 6px;
+  }
+
+  .choice-modal h3 {
+    font-size: 16px;
+  }
+
+  .choice-modal > p {
+    display: none;
+  }
+
+  .choice-board-wrap {
+    width: 105px;
+  }
+
+  .choice-piece {
+    min-height: 50px;
+  }
+
+  .choice-actions .modal-btn,
+  .choice-actions .modal-secondary {
+    min-height: 34px;
+    margin-top: 3px;
+    padding: 5px 7px;
+  }
 }
 
 /* 横画面：縦画面より盤面を大きくし、右側パネルとのバランスを取る */
