@@ -73,12 +73,20 @@
           <input type="text" id="foodName" placeholder="例：唐揚げ、焼き鳥" maxlength="24" autocomplete="off">
           <button class="btn food-btn" id="btnEatFood" type="button">食べた（ストック＋1）</button>
         </div>
+        <details class="preset-menu" open>
+          <summary>🍢 定番メニューから選ぶ（タップで即登録）</summary>
+          <div class="preset-grid" id="foodPresetGrid"></div>
+        </details>
 
         <div class="item-form category-form">
           <div class="category-label drink-label">🍺 飲み物</div>
           <input type="text" id="drinkName" placeholder="例：レモンサワー、ビール" maxlength="24" autocomplete="off">
           <button class="btn drink-btn" id="btnEatDrink" type="button">飲んだ（ストック＋1）</button>
         </div>
+        <details class="preset-menu" open>
+          <summary>🍺 定番メニューから選ぶ（タップで即登録）</summary>
+          <div class="preset-grid" id="drinkPresetGrid"></div>
+        </details>
 
         <div class="duplicate-note" id="duplicateNote">食べ物：重複OK　／　飲み物：重複OK</div>
         <ul class="log-list" id="logList"></ul>
